@@ -3,21 +3,35 @@
 declare(strict_types=1);
 
 /** @var \BSPhotoGalerie\Core\Application $app */
-/** @var string $title */
+/** @var string $siteTitle */
+/** @var string $siteDescription */
+/** @var list<\BSPhotoGalerie\Models\Media> $previewItems */
 ?>
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
-    <link rel="stylesheet" href="<?= htmlspecialchars($app->url('/css/public.css'), ENT_QUOTES, 'UTF-8') ?>">
-</head>
-<body class="public-body">
-<main class="public-main">
-    <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
-    <p>Willkommen bei der BS Photo Galerie. Die öffentliche Galerie folgt in Phase&nbsp;6.</p>
-    <p><a class="public-link" href="<?= htmlspecialchars($app->url('/admin/login'), ENT_QUOTES, 'UTF-8') ?>">Zur Verwaltung</a></p>
-</main>
-</body>
-</html>
+<section class="home-hero">
+    <h1><?= htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8') ?></h1>
+    <?php if ($siteDescription !== '') : ?>
+        <p class="home-lead"><?= htmlspecialchars($siteDescription, ENT_QUOTES, 'UTF-8') ?></p>
+    <?php else : ?>
+        <p class="home-lead">Willkommen — öffentliche Fotos findest du in der Galerie.</p>
+    <?php endif; ?>
+    <p class="home-cta">
+        <a class="public-btn public-btn-primary" href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Zur Galerie</a>
+    </p>
+</section>
+
+<?php if ($previewItems !== []) : ?>
+<section class="home-preview" aria-labelledby="preview-heading">
+    <h2 id="preview-heading" class="home-preview-title">Aktuelle Bilder</h2>
+    <div class="home-preview-grid">
+        <?php foreach ($previewItems as $m) : ?>
+            <a class="home-preview-tile" href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>"
+               title="<?= htmlspecialchars($m->title !== '' ? $m->title : $m->filename, ENT_QUOTES, 'UTF-8') ?>">
+                <img src="<?= htmlspecialchars($app->url('/thumb/' . $m->id), ENT_QUOTES, 'UTF-8') ?>"
+                     alt="<?= htmlspecialchars($m->title !== '' ? $m->title : 'Bild', ENT_QUOTES, 'UTF-8') ?>"
+                     width="200" height="200" loading="lazy" decoding="async">
+            </a>
+        <?php endforeach; ?>
+    </div>
+    <p class="home-preview-more"><a href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Alle anzeigen →</a></p>
+</section>
+<?php endif; ?>

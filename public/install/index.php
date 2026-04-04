@@ -6,6 +6,8 @@ $root = dirname(__DIR__, 2);
 
 require $root . '/vendor/autoload.php';
 
+\BSPhotoGalerie\Core\SecurityHeaders::sendForApp();
+
 if (is_file($root . '/config/.env')) {
     Dotenv\Dotenv::createImmutable($root . '/config')->safeLoad();
 }

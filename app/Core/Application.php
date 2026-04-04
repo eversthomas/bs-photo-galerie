@@ -5,14 +5,29 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ConfigRepository;
+use BSPhotoGalerie\Config\ImportSettings;
+use BSPhotoGalerie\Config\MediaSettings;
+use BSPhotoGalerie\Controllers\Admin\CategoryController;
 use BSPhotoGalerie\Controllers\Admin\DashboardController;
 use BSPhotoGalerie\Controllers\Admin\LoginController;
+use BSPhotoGalerie\Controllers\Admin\ImportController;
+use BSPhotoGalerie\Controllers\Admin\MediaController;
+use BSPhotoGalerie\Controllers\Admin\SettingsController;
+use BSPhotoGalerie\Controllers\GalleryController;
 use BSPhotoGalerie\Controllers\HomeController;
+use BSPhotoGalerie\Controllers\ThumbController;
 use BSPhotoGalerie\Middleware\AuthMiddleware;
 use BSPhotoGalerie\Middleware\CsrfMiddleware;
+use BSPhotoGalerie\Models\CategoryRepository;
+use BSPhotoGalerie\Models\MediaRepository;
+use BSPhotoGalerie\Models\SettingsRepository;
 use BSPhotoGalerie\Models\UserRepository;
 use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Database;
+use BSPhotoGalerie\Services\Import\MediaImportService;
+use BSPhotoGalerie\Services\Media\MediaAssetService;
+use BSPhotoGalerie\Services\Media\MediaUploadService;
+use Intervention\Image\ImageManager;
 use FastRoute\Dispatcher;
 use FastRoute\RouteCollector;
 use RuntimeException;
@@ -34,6 +49,18 @@ final class Application
     private ?UserRepository $userRepository = null;
 
     private ?AuthService $auth = null;
+
+    private ?MediaRepository $mediaRepository = null;
+
+    private ?CategoryRepository $categoryRepository = null;
+
+    private ?SettingsRepository $settingsRepository = null;
+
+    private ?MediaUploadService $mediaUploadService = null;
+
+    private ?MediaImportService $mediaImportService = null;
+
+    private ?MediaAssetService $mediaAssetService = null;
 
     private ?Dispatcher $dispatcher = null;
 
@@ -92,6 +119,79 @@ final class Application
         return $this->auth;
     }
 
+    public function mediaRepository(): MediaRepository
+    {
+        if ($this->mediaRepository === null) {
+            $this->mediaRepository = new MediaRepository($this->database());
+        }
+
+        return $this->mediaRepository;
+    }
+
+    public function categoryRepository(): CategoryRepository
+    {
+        if ($this->categoryRepository === null) {
+            $this->categoryRepository = new CategoryRepository($this->database());
+        }
+
+        return $this->categoryRepository;
+    }
+
+    public function settingsRepository(): SettingsRepository
+    {
+        if ($this->settingsRepository === null) {
+            $this->settingsRepository = new SettingsRepository($this->database());
+        }
+
+        return $this->settingsRepository;
+    }
+
+    public function mediaUploadService(): MediaUploadService
+    {
+        if ($this->mediaUploadService === null) {
+            $settings = MediaSettings::fromAppConfig($this->config);
+            $this->mediaUploadService = new MediaUploadService(
+                $this->projectRoot,
+                $this->mediaRepository(),
+                $settings,
+                ImageManager::gd()
+            );
+        }
+
+        return $this->mediaUploadService;
+    }
+
+    public function importSettings(): ImportSettings
+    {
+        return new ImportSettings($this->config);
+    }
+
+    public function mediaImportService(): MediaImportService
+    {
+        if ($this->mediaImportService === null) {
+            $this->mediaImportService = new MediaImportService(
+                $this->projectRoot,
+                $this->mediaRepository(),
+                $this->mediaUploadService(),
+                $this->importSettings()
+            );
+        }
+
+        return $this->mediaImportService;
+    }
+
+    public function mediaAssetService(): MediaAssetService
+    {
+        if ($this->mediaAssetService === null) {
+            $this->mediaAssetService = new MediaAssetService(
+                $this->projectRoot,
+                $this->mediaRepository()
+            );
+        }
+
+        return $this->mediaAssetService;
+    }
+
     /**
      * Öffentliche URL inkl. Basis-Pfad unterhalb von public/.
      */
@@ -123,6 +223,7 @@ final class Application
 
     public function run(): void
     {
+        SecurityHeaders::sendForApp();
         $this->ensureSession();
         $dispatcher = $this->router();
         $routeInfo = $dispatcher->dispatch($this->request->method(), $this->request->path());
@@ -235,11 +336,32 @@ final class Application
 
         $this->dispatcher = simpleDispatcher(function (RouteCollector $r): void {
             $r->addRoute('GET', '/', [HomeController::class, 'index']);
+            $r->addRoute('GET', '/galerie', [GalleryController::class, 'index']);
+            $r->addRoute('GET', '/galerie/kategorie/{slug:[a-zA-Z0-9\\-]+}', [GalleryController::class, 'category']);
+            $r->addRoute('GET', '/thumb/{id:\d+}', [ThumbController::class, 'show']);
             $r->addRoute('GET', '/admin', [DashboardController::class, 'index']);
             $r->addGroup('/admin', function (RouteCollector $r): void {
                 $r->addRoute('GET', '/login', [LoginController::class, 'showForm']);
                 $r->addRoute('POST', '/login', [LoginController::class, 'login']);
                 $r->addRoute('POST', '/logout', [DashboardController::class, 'logout']);
+                $r->addRoute('GET', '/categories', [CategoryController::class, 'index']);
+                $r->addRoute('GET', '/categories/create', [CategoryController::class, 'create']);
+                $r->addRoute('POST', '/categories/store', [CategoryController::class, 'store']);
+                $r->addRoute('GET', '/categories/{id:\d+}/edit', [CategoryController::class, 'edit']);
+                $r->addRoute('POST', '/categories/{id:\d+}/update', [CategoryController::class, 'update']);
+                $r->addRoute('POST', '/categories/{id:\d+}/delete', [CategoryController::class, 'delete']);
+                $r->addRoute('GET', '/media', [MediaController::class, 'index']);
+                $r->addRoute('GET', '/media/upload', [MediaController::class, 'uploadForm']);
+                $r->addRoute('POST', '/media/upload', [MediaController::class, 'upload']);
+                $r->addRoute('POST', '/media/reorder', [MediaController::class, 'reorder']);
+                $r->addRoute('POST', '/media/inline-title', [MediaController::class, 'inlineTitle']);
+                $r->addRoute('GET', '/media/{id:\d+}/edit', [MediaController::class, 'edit']);
+                $r->addRoute('POST', '/media/{id:\d+}/update', [MediaController::class, 'update']);
+                $r->addRoute('POST', '/media/{id:\d+}/delete', [MediaController::class, 'destroy']);
+                $r->addRoute('GET', '/import', [ImportController::class, 'index']);
+                $r->addRoute('POST', '/import/run', [ImportController::class, 'run']);
+                $r->addRoute('GET', '/settings', [SettingsController::class, 'index']);
+                $r->addRoute('POST', '/settings/update', [SettingsController::class, 'update']);
             });
         });
 

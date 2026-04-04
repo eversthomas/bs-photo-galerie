@@ -1,0 +1,42 @@
+/**
+ * Erscheinungsbilder für die öffentliche Site (data-public-theme / data-layout-width auf body).
+ * Wird nach public.css eingebunden.
+ */
+
+/* —— Abmessungen —— */
+.public-body[data-layout-width='wide'] {
+    --public-main-max: 900px;
+    --public-gallery-main-max: 1400px;
+}
+
+/* —— Dunkel —— */
+.public-body[data-public-theme='dark'] {
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --public-muted: #94a3b8;
+    --accent: #38bdf8;
+    --bg: #0f172a;
+    --header-bg: #1e293b;
+    --header-border: rgba(148, 163, 184, 0.22);
+    --header-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --border-subtle: rgba(148, 163, 184, 0.25);
+    --tile-bg: #334155;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    --card-shadow-strong: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* —— Warm / hell —— */
+.public-body[data-public-theme='warm'] {
+    --text: #292524;
+    --muted: #57534e;
+    --public-muted: #57534e;
+    --accent: #c2410c;
+    --bg: #faf7f2;
+    --header-bg: #fff8f0;
+    --header-border: rgba(41, 37, 36, 0.1);
+    --header-shadow: 0 1px 3px rgba(41, 37, 36, 0.06);
+    --border-subtle: rgba(41, 37, 36, 0.14);
+    --tile-bg: #e7e5e4;
+    --card-shadow: 0 2px 8px rgba(41, 37, 36, 0.08);
+    --card-shadow-strong: 0 2px 8px rgba(41, 37, 36, 0.1);
+}

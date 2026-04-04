@@ -85,6 +85,13 @@ final class Database
         return $stmt->rowCount();
     }
 
+    public function lastInsertId(): int
+    {
+        $id = (int) $this->pdo->lastInsertId();
+
+        return $id;
+    }
+
     /**
      * @param list<mixed>|array<string, mixed> $params
      */

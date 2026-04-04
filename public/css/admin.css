@@ -34,6 +34,24 @@
     border-bottom: 1px solid var(--admin-border);
 }
 
+.admin-nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.1rem;
+    align-items: center;
+}
+
+.admin-nav-links a {
+    color: var(--admin-muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 500;
+}
+
+.admin-nav-links a:hover {
+    color: var(--admin-accent);
+}
+
 .admin-brand {
     display: flex;
     flex-direction: column;
@@ -123,6 +141,52 @@
     max-width: 22rem;
 }
 
+.admin-fieldset {
+    margin: 0;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--radius);
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.admin-fieldset legend {
+    padding: 0 0.35rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.field-inline {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.field-inline span {
+    flex: 1;
+    padding-top: 0.15rem;
+}
+
+.field-inline input[type='checkbox'] {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+.field textarea {
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--admin-border);
+    background: #0f172a;
+    color: var(--admin-text);
+    font: inherit;
+    resize: vertical;
+    min-height: 6rem;
+}
+
+.field textarea:focus {
+    outline: 2px solid rgba(56, 189, 248, 0.35);
+    outline-offset: 1px;
+}
+
 .field {
     display: flex;
     flex-direction: column;
@@ -186,6 +250,93 @@
     background: rgba(56, 189, 248, 0.06);
 }
 
+.admin-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.admin-toolbar-title {
+    margin: 0;
+    font-size: 1.35rem;
+}
+
+.admin-toolbar-action {
+    text-decoration: none;
+    text-align: center;
+}
+
+.upload-form input[type="file"] {
+    padding: 0.35rem 0;
+}
+
+.field select {
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--admin-border);
+    background: #0f172a;
+    color: var(--admin-text);
+    font: inherit;
+}
+
+.mono {
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+}
+
+.admin-shortcuts {
+    margin: 1rem 0;
+    padding-left: 1.25rem;
+}
+
+.admin-shortcuts a {
+    font-weight: 500;
+}
+
+.media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.1rem;
+}
+
+.media-card {
+    background: #0f172a;
+    border: 1px solid var(--admin-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.media-thumb-link {
+    display: block;
+    aspect-ratio: 1;
+    background: #020617;
+}
+
+.media-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.media-meta {
+    padding: 0.65rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.media-title {
+    font-size: 0.88rem;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 a {
     color: var(--admin-accent);
 }
@@ -193,4 +344,195 @@ a {
 a:hover {
     color: var(--admin-accent);
     text-decoration: underline;
+}
+
+.admin-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.button-secondary {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--admin-border);
+    background: #243042;
+    color: var(--admin-text);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.button-secondary:hover {
+    background: #2c3d55;
+    color: var(--admin-text);
+    text-decoration: none;
+}
+
+.reorder-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.media-grid-sortable .media-card {
+    position: relative;
+    cursor: grab;
+}
+
+.media-grid-sortable .media-card:active {
+    cursor: grabbing;
+}
+
+.media-card-dragging {
+    opacity: 0.65;
+    outline: 2px dashed var(--admin-accent);
+}
+
+.media-drag-hint {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 2;
+    border: none;
+    background: rgba(15, 23, 42, 0.75);
+    color: var(--admin-muted);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: grab;
+}
+
+.media-badge-offline {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 2;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(248, 113, 113, 0.25);
+    color: var(--admin-danger);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.inline-title-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.inline-title-input {
+    width: 100%;
+    padding: 0.35rem 0.45rem;
+    border-radius: 6px;
+    border: 1px solid var(--admin-border);
+    background: #020617;
+    color: var(--admin-text);
+    font: inherit;
+    font-size: 0.82rem;
+}
+
+.button-tiny {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.5rem;
+    align-self: flex-start;
+}
+
+.media-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+}
+
+.inline-delete-form {
+    display: inline;
+    margin: 0;
+}
+
+.button-danger-text {
+    background: none;
+    border: none;
+    color: var(--admin-danger);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.button-danger-text:hover {
+    color: #fca5a5;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.admin-table th,
+.admin-table td {
+    text-align: left;
+    padding: 0.55rem 0.65rem;
+    border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-table th {
+    color: var(--admin-muted);
+    font-weight: 600;
+}
+
+.admin-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--admin-border);
+    background: #0f172a;
+    color: var(--admin-text);
+    font: inherit;
+    resize: vertical;
+}
+
+.admin-form.wide {
+    max-width: 38rem;
+}
+
+.media-edit-preview {
+    margin-bottom: 1rem;
+}
+
+.media-edit-preview img {
+    border-radius: 8px;
+    border: 1px solid var(--admin-border);
+    object-fit: cover;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
 }

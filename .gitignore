@@ -6,4 +6,10 @@
 !/storage/cache/.gitkeep
 /storage/thumbnails/*
 !/storage/thumbnails/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+!/public/uploads/.htaccess
+/public/import/*
+!/public/import/.gitkeep
+!/public/import/.htaccess
 .DS_Store

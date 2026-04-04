@@ -11,7 +11,20 @@ final class HomeController extends BaseController
 {
     public function index(): void
     {
-        $title = 'BS Photo Galerie';
-        $this->render('home', compact('title'));
+        $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
+        $description = $this->app->settingsRepository()->get('site_description', '');
+        $preview = $this->app->mediaRepository()->listPublicVisible(12, 0, null);
+
+        $this->render(
+            'home',
+            [
+                'pageTitle' => $siteTitle,
+                'siteTitle' => $siteTitle,
+                'siteDescription' => $description,
+                'previewItems' => $preview,
+                'includeGalleryAssets' => false,
+            ],
+            'public/layout'
+        );
     }
 }

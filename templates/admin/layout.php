@@ -24,6 +24,14 @@ declare(strict_types=1);
         <span class="admin-brand-sub">Verwaltung</span>
     </div>
     <?php if (isset($user) && $user !== null) : ?>
+        <nav class="admin-nav-links" aria-label="Hauptnavigation">
+            <a href="<?= htmlspecialchars($app->url('/admin'), ENT_QUOTES, 'UTF-8') ?>">Dashboard</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/media'), ENT_QUOTES, 'UTF-8') ?>">Medien</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/media/upload'), ENT_QUOTES, 'UTF-8') ?>">Hochladen</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/import'), ENT_QUOTES, 'UTF-8') ?>">Import</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/categories'), ENT_QUOTES, 'UTF-8') ?>">Kategorien</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>">Einstellungen</a>
+        </nav>
         <nav class="admin-nav">
             <span class="admin-user" title="Angemeldet"><?= htmlspecialchars($user->username, ENT_QUOTES, 'UTF-8') ?></span>
             <form method="post" action="<?= htmlspecialchars($app->url('/admin/logout'), ENT_QUOTES, 'UTF-8') ?>" class="admin-logout">

@@ -1,0 +1,14 @@
+# Document Root sollte idealerweise direkt auf /public zeigen.
+# Falls der Server auf dieses Verzeichnis zeigt: alles nach public/ weiterleiten.
+
+Options -Indexes +FollowSymLinks
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Bereits unter /public/ – nicht erneut umschreiben
+    RewriteRule ^public/ - [L]
+    RewriteRule ^$ public/ [L]
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+DirectoryIndex index.php index.html

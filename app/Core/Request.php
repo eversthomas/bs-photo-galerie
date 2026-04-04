@@ -13,13 +13,15 @@ final class Request
      * @param array<string, string> $query
      * @param array<string, mixed> $body
      * @param array<string, mixed> $server
+     * @param array<string, mixed> $files Rohdaten aus $_FILES
      */
     public function __construct(
         private string $method,
         private string $path,
         private array $query,
         private array $body,
-        private array $server
+        private array $server,
+        private array $files = []
     ) {
     }
 
@@ -67,7 +69,12 @@ final class Request
             }
         }
 
-        return new self($method, $path, $query, $body, $server);
+        $files = [];
+        if (isset($_FILES) && is_array($_FILES)) {
+            $files = $_FILES;
+        }
+
+        return new self($method, $path, $query, $body, $server, $files);
     }
 
     public function method(): string
@@ -119,5 +126,13 @@ final class Request
     public function server(string $key, ?string $default = null): ?string
     {
         return $this->server[$key] ?? $default;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function files(): array
+    {
+        return $this->files;
     }
 }

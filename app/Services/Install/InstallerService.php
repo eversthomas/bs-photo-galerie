@@ -84,6 +84,25 @@ final class InstallerService
                     'password' => $db['password'],
                     'charset' => 'utf8mb4',
                 ],
+                'media' => [
+                    'max_upload_bytes' => 20 * 1024 * 1024,
+                    'max_image_pixels' => 40_000_000,
+                    'thumbnail_width' => 480,
+                    'allowed_mime' => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+                ],
+                'import' => [
+                    'local_path' => 'public/import',
+                    'delete_source_after_import' => true,
+                    'ftp' => [
+                        'enabled' => false,
+                        'host' => '',
+                        'port' => 21,
+                        'username' => '',
+                        'password' => '',
+                        'passive' => true,
+                        'remote_dir' => '/',
+                    ],
+                ],
             ];
 
             $this->writeConfigFile($config);
@@ -206,7 +225,11 @@ final class InstallerService
             ['site_title', 'BS Photo Galerie'],
             ['site_description', ''],
             ['slideshow_enabled', '0'],
+            ['slideshow_interval_seconds', '5'],
             ['background_music_enabled', '0'],
+            ['music_playlist', ''],
+            ['public_theme', 'default'],
+            ['public_layout_width', 'standard'],
         ];
 
         $stmt = $pdo->prepare(

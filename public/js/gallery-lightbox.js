@@ -1,0 +1,403 @@
+/**
+ * Galerie-Lightbox: Lightbox, Diashow (Timer), Vollbild, optionale Musik (Vanilla JS).
+ */
+(function () {
+    'use strict';
+
+    var STORAGE_INTERVAL = 'bsphoto_slideshow_interval_sec';
+
+    function readConfig() {
+        var el = document.getElementById('gallery-runtime-config');
+        if (!el || !el.textContent.trim()) {
+            return {
+                slideshowEnabled: false,
+                slideshowInterval: 5,
+                musicEnabled: false,
+                musicUrls: [],
+            };
+        }
+        try {
+            return JSON.parse(el.textContent);
+        } catch (e) {
+            return {
+                slideshowEnabled: false,
+                slideshowInterval: 5,
+                musicEnabled: false,
+                musicUrls: [],
+            };
+        }
+    }
+
+    var config = readConfig();
+    var dialog = document.getElementById('gallery-lightbox');
+    var grid = document.getElementById('gallery-grid');
+    if (!dialog || !grid) {
+        return;
+    }
+
+    var lbImg = document.getElementById('lb-img');
+    var lbTitle = document.getElementById('lb-title');
+    var lbDesc = document.getElementById('lb-desc');
+    var btnPrev = document.getElementById('lb-prev');
+    var btnNext = document.getElementById('lb-next');
+    var btnSlideshow = document.getElementById('lb-slideshow');
+    var selInterval = document.getElementById('lb-interval');
+    var btnMusic = document.getElementById('lb-music');
+    var btnFs = document.getElementById('lb-fullscreen');
+    var groupSlideshow = document.getElementById('lb-group-slideshow');
+    var groupMusic = document.getElementById('lb-group-music');
+    var audio = document.getElementById('gallery-bg-audio');
+
+    var items = [];
+    var current = 0;
+    var slideshowTimer = null;
+    var playlistIndex = 0;
+    var musicPlaying = false;
+
+    var intervalChoices = [3, 5, 8, 10, 15, 30, 60];
+
+    function collectItems() {
+        items = [];
+        var tiles = grid.querySelectorAll('.gallery-tile');
+        for (var i = 0; i < tiles.length; i++) {
+            var t = tiles[i];
+            items.push({
+                full: t.getAttribute('data-full') || '',
+                title: t.getAttribute('data-title') || '',
+                desc: t.getAttribute('data-desc') || '',
+            });
+        }
+    }
+
+    function currentIntervalSec() {
+        if (selInterval && selInterval.value) {
+            var n = parseInt(selInterval.value, 10);
+            if (!isNaN(n) && n >= 3) {
+                return n;
+            }
+        }
+        return config.slideshowInterval || 5;
+    }
+
+    function show(i) {
+        if (items.length === 0) {
+            return;
+        }
+        current = ((i % items.length) + items.length) % items.length;
+        var it = items[current];
+        lbImg.src = it.full;
+        lbImg.alt = it.title || 'Bild';
+        lbTitle.textContent = it.title || '';
+        lbDesc.textContent = it.desc || '';
+        lbDesc.style.display = it.desc ? 'block' : 'none';
+        restartSlideshowIfPlaying();
+    }
+
+    function openAt(index) {
+        collectItems();
+        if (items.length === 0) {
+            return;
+        }
+        show(parseInt(index, 10) || 0);
+        if (typeof dialog.showModal === 'function') {
+            dialog.showModal();
+        }
+    }
+
+    function clearImage() {
+        lbImg.removeAttribute('src');
+    }
+
+    function close() {
+        if (typeof dialog.close === 'function') {
+            dialog.close();
+        }
+    }
+
+    function stopSlideshow() {
+        if (slideshowTimer !== null) {
+            clearInterval(slideshowTimer);
+            slideshowTimer = null;
+        }
+        if (btnSlideshow) {
+            btnSlideshow.setAttribute('aria-pressed', 'false');
+            btnSlideshow.textContent = 'Diashow';
+        }
+    }
+
+    function restartSlideshowIfPlaying() {
+        if (slideshowTimer === null) {
+            return;
+        }
+        stopSlideshow();
+        startSlideshow();
+    }
+
+    function startSlideshow() {
+        stopSlideshow();
+        if (!config.slideshowEnabled || items.length < 2) {
+            return;
+        }
+        var ms = currentIntervalSec() * 1000;
+        slideshowTimer = setInterval(function () {
+            show(current + 1);
+        }, ms);
+        if (btnSlideshow) {
+            btnSlideshow.setAttribute('aria-pressed', 'true');
+            btnSlideshow.textContent = 'Pause';
+        }
+    }
+
+    function toggleSlideshow() {
+        if (!config.slideshowEnabled || items.length < 2) {
+            return;
+        }
+        if (slideshowTimer !== null) {
+            stopSlideshow();
+        } else {
+            startSlideshow();
+        }
+    }
+
+    function loadAudioTrack(idx) {
+        if (!audio || !config.musicUrls.length) {
+            return;
+        }
+        playlistIndex = ((idx % config.musicUrls.length) + config.musicUrls.length) % config.musicUrls.length;
+        audio.src = config.musicUrls[playlistIndex];
+    }
+
+    function pauseMusic() {
+        if (!audio) {
+            return;
+        }
+        audio.pause();
+        musicPlaying = false;
+        if (btnMusic) {
+            btnMusic.setAttribute('aria-pressed', 'false');
+            btnMusic.textContent = 'Musik';
+        }
+    }
+
+    function tryPlayMusic() {
+        if (!audio || !config.musicUrls.length || !config.musicEnabled) {
+            return;
+        }
+        loadAudioTrack(playlistIndex);
+        audio.play().then(
+            function () {
+                musicPlaying = true;
+                if (btnMusic) {
+                    btnMusic.setAttribute('aria-pressed', 'true');
+                    btnMusic.textContent = 'Musik aus';
+                }
+            },
+            function () {
+                musicPlaying = false;
+            }
+        );
+    }
+
+    function toggleMusic() {
+        if (!config.musicEnabled || !config.musicUrls.length) {
+            return;
+        }
+        if (musicPlaying) {
+            pauseMusic();
+        } else {
+            tryPlayMusic();
+        }
+    }
+
+    function onAudioEnded() {
+        if (!config.musicUrls.length) {
+            return;
+        }
+        loadAudioTrack(playlistIndex + 1);
+        audio.play().catch(function () {});
+    }
+
+    function setupUiFromConfig() {
+        var showMusic = config.musicEnabled && config.musicUrls.length > 0;
+        if (groupMusic) {
+            groupMusic.hidden = !showMusic;
+        }
+        if (groupSlideshow && btnSlideshow && selInterval) {
+            var showSlideshow = config.slideshowEnabled && items.length > 1;
+            groupSlideshow.hidden = !showSlideshow;
+            selInterval.disabled = !showSlideshow;
+            btnSlideshow.disabled = !showSlideshow;
+        }
+        if (selInterval && selInterval.options.length === 0) {
+            for (var j = 0; j < intervalChoices.length; j++) {
+                var sec = intervalChoices[j];
+                var opt = document.createElement('option');
+                opt.value = String(sec);
+                opt.textContent = sec + ' s';
+                selInterval.appendChild(opt);
+            }
+            var def = config.slideshowInterval;
+            try {
+                var stored = sessionStorage.getItem(STORAGE_INTERVAL);
+                if (stored) {
+                    def = parseInt(stored, 10) || def;
+                }
+            } catch (e) {}
+            if (selInterval.querySelector('option[value="' + def + '"]')) {
+                selInterval.value = String(def);
+            } else {
+                selInterval.value = String(config.slideshowInterval);
+            }
+        }
+    }
+
+    function cleanupOnClose() {
+        clearImage();
+        stopSlideshow();
+        pauseMusic();
+        if (document.fullscreenElement === dialog) {
+            document.exitFullscreen().catch(function () {});
+        }
+        if (btnFs) {
+            btnFs.setAttribute('aria-pressed', 'false');
+            btnFs.textContent = 'Vollbild';
+        }
+    }
+
+    dialog.addEventListener('close', cleanupOnClose);
+
+    grid.addEventListener('click', function (e) {
+        var tile = e.target.closest('.gallery-tile');
+        if (!tile || !grid.contains(tile)) {
+            return;
+        }
+        collectItems();
+        setupUiFromConfig();
+        var idx = parseInt(tile.getAttribute('data-index'), 10);
+        if (!isNaN(idx)) {
+            openAt(idx);
+        }
+    });
+
+    if (btnPrev) {
+        btnPrev.addEventListener('click', function () {
+            show(current - 1);
+        });
+    }
+    if (btnNext) {
+        btnNext.addEventListener('click', function () {
+            show(current + 1);
+        });
+    }
+
+    if (btnSlideshow) {
+        btnSlideshow.addEventListener('click', function () {
+            toggleSlideshow();
+        });
+    }
+
+    if (selInterval) {
+        selInterval.addEventListener('change', function () {
+            try {
+                sessionStorage.setItem(STORAGE_INTERVAL, selInterval.value);
+            } catch (e) {}
+            restartSlideshowIfPlaying();
+        });
+    }
+
+    if (btnMusic) {
+        btnMusic.addEventListener('click', function () {
+            toggleMusic();
+        });
+    }
+
+    if (btnFs) {
+        btnFs.addEventListener('click', function () {
+            if (!document.fullscreenElement) {
+                dialog
+                    .requestFullscreen()
+                    .then(function () {
+                        btnFs.setAttribute('aria-pressed', 'true');
+                        btnFs.textContent = 'Vollbild beenden';
+                    })
+                    .catch(function () {});
+            } else {
+                document.exitFullscreen();
+            }
+        });
+    }
+
+    document.addEventListener('fullscreenchange', function () {
+        if (!btnFs) {
+            return;
+        }
+        if (document.fullscreenElement === dialog) {
+            btnFs.setAttribute('aria-pressed', 'true');
+            btnFs.textContent = 'Vollbild beenden';
+        } else {
+            btnFs.setAttribute('aria-pressed', 'false');
+            btnFs.textContent = 'Vollbild';
+        }
+    });
+
+    if (audio) {
+        audio.addEventListener('ended', onAudioEnded);
+    }
+
+    dialog.querySelectorAll('[data-lb-close]').forEach(function (el) {
+        el.addEventListener('click', function () {
+            close();
+        });
+    });
+
+    function onKey(e) {
+        if (!dialog.open) {
+            return;
+        }
+        if (e.key === 'Escape') {
+            if (document.fullscreenElement === dialog) {
+                return;
+            }
+            close();
+        } else if (e.key === 'ArrowRight') {
+            show(current + 1);
+        } else if (e.key === 'ArrowLeft') {
+            show(current - 1);
+        }
+    }
+
+    document.addEventListener('keydown', onKey);
+
+    var touchStartX = null;
+
+    dialog.addEventListener(
+        'touchstart',
+        function (e) {
+            if (!dialog.open) {
+                return;
+            }
+            touchStartX = e.changedTouches[0].screenX;
+        },
+        { passive: true }
+    );
+
+    dialog.addEventListener(
+        'touchend',
+        function (e) {
+            if (!dialog.open || touchStartX === null) {
+                return;
+            }
+            var dx = e.changedTouches[0].screenX - touchStartX;
+            touchStartX = null;
+            if (Math.abs(dx) < 56) {
+                return;
+            }
+            if (dx < 0) {
+                show(current + 1);
+            } else {
+                show(current - 1);
+            }
+        },
+        { passive: true }
+    );
+})();
