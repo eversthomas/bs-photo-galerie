@@ -90,15 +90,24 @@ $sourceLabel = static function (?array $r): string {
     <?php endif; ?>
 
     <h2 class="update-section-title">Automatisches Update (Git)</h2>
+    <?php if (! $hasGitDir) : ?>
+        <div class="flash flash-info" role="note">
+            <p><strong>Bei dieser Installation fehlt der Ordner <code class="mono">.git</code>.</strong> Das ist üblich, wenn die Software per FTP, Dateimanager oder ZIP auf den Server gelegt wurde — dabei wird kein Git-Verlauf mit hochgeladen. Ohne <code class="mono">.git</code> kann diese Oberfläche kein <code class="mono">git fetch</code> / Checkout ausführen; <code class="mono">proc_open</code> allein reicht nicht.</p>
+            <p class="small muted" style="margin-bottom: 0"><strong>Praktisch:</strong> Aktualisieren Sie über den <strong>ZIP-Link</strong> oben (Dateien ersetzen, <code class="mono">config/.env</code> und <code class="mono">storage/</code> behalten) oder führen Sie auf dem Server per SSH ein <code class="mono">git clone</code> des Repos aus und migrieren Sie Konfiguration bzw. Uploads. Wenn ein echter Klon läuft, können Sie zusätzlich <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code class="mono">config/.env</code> setzen.</p>
+        </div>
+    <?php elseif (! $gitAllowed) : ?>
+        <div class="flash flash-info" role="note">
+            <p><strong>Git-Arbeitsverzeichnis ist vorhanden, Web-Updates sind aber nicht freigeschaltet.</strong> In <code class="mono">config/.env</code> die Zeile <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> eintragen — nur wenn Sie bewusst möchten, dass die Verwaltungsoberfläche <code class="mono">git</code> ausführen darf.</p>
+        </div>
+    <?php endif; ?>
     <p class="muted small">
-        Auf vielen Webhosting-Paketen (z.&nbsp;B. reines FTP) ist kein Git installiert oder <code>proc_open</code> ist gesperrt — dann funktioniert der Button unten nicht.
-        Dann bitte <strong>ZIP von GitHub</strong> laden und manuell einspielen oder per SSH <code>git pull</code> / <code>composer install</code> ausführen.
+        Auf vielen Webhosting-Paketen ist kein Git auf dem Server nutzbar oder <code>proc_open</code> ist gesperrt — dann funktioniert der Button unten nicht.
+        Alternativ: <strong>ZIP von GitHub</strong> laden und manuell einspielen oder per SSH <code>git pull</code> / <code>composer install</code>.
     </p>
     <ul class="small muted update-checklist">
-        <li>Umgebungsvariable <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code>config/.env</code> setzen (Sicherheit: nur bei Bedarf).</li>
         <li>Installation muss ein <strong>Git-Klon</strong> des Repos sein (Ordner <code>.git</code> vorhanden: <?= $hasGitDir ? '<strong>ja</strong>' : '<strong>nein</strong>' ?>).</li>
         <li>PHP <code>proc_open</code>: <?= $canShell ? '<strong>verfügbar</strong>' : '<strong>gesperrt / nicht nutzbar</strong>' ?>.</li>
-        <li>Aktuell erlaubt: <?= $gitAllowed ? '<strong>ja</strong>' : '<strong>nein</strong> (Variable nicht gesetzt)' ?>.</li>
+        <li>Umgebungsvariable <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code>config/.env</code> (Sicherheit: nur bei Bedarf): <?= $gitAllowed ? '<strong>ja</strong>' : '<strong>nein</strong>' ?>.</li>
     </ul>
 
     <?php
@@ -124,6 +133,20 @@ $sourceLabel = static function (?array $r): string {
             <button type="submit" class="button-primary">Jetzt per Git &amp; Composer aktualisieren</button>
         </form>
     <?php elseif ($remote !== null && $updateAvailable) : ?>
-        <p class="muted">Automatisches Update ist aktuell <strong>nicht möglich</strong>. Bitte ZIP-Link oben nutzen oder Server-Konfiguration anpassen.</p>
+        <div class="flash flash-info" role="status">
+            <p><strong>Automatisches Update per Klick ist derzeit nicht möglich.</strong> Es fehlt noch:</p>
+            <ul class="small update-missing-reasons">
+                <?php if (! $hasGitDir) : ?>
+                    <li>ein <strong>Git-Klon</strong> auf dem Server (Ordner <code class="mono">.git</code>)</li>
+                <?php endif; ?>
+                <?php if (! $canShell) : ?>
+                    <li>PHP-<strong><code class="mono">proc_open</code></strong> (wird vom Hoster blockiert)</li>
+                <?php endif; ?>
+                <?php if (! $gitAllowed) : ?>
+                    <li>die Freigabe <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code class="mono">config/.env</code></li>
+                <?php endif; ?>
+            </ul>
+            <p class="small muted" style="margin-bottom: 0">Bitte den <strong>ZIP-Link</strong> oben nutzen oder die Punkte auf dem Server erfüllen.</p>
+        </div>
     <?php endif; ?>
 </section>
