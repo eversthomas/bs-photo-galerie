@@ -23,7 +23,8 @@ final class UpdateController extends BaseController
         $local = AppVersion::readFromProjectRoot($root);
 
         $client = new GithubReleaseClient($root);
-        $remote = $client->fetchLatestCached();
+        $check = $client->fetchLatestCached();
+        $remote = $check['remote'];
 
         $newer = false;
         if ($remote !== null) {
@@ -39,6 +40,8 @@ final class UpdateController extends BaseController
                 'flash' => Flash::pull() ?? [],
                 'localVersion' => $local,
                 'remote' => $remote,
+                'remoteError' => $check['error'],
+                'remoteDiagnostic' => $check['diagnostic'],
                 'updateAvailable' => $newer,
                 'repoUrl' => self::REPO_URL,
                 'gitAllowed' => GitApplicationUpdater::isWebGitUpdateAllowed(),
@@ -47,6 +50,14 @@ final class UpdateController extends BaseController
             ],
             'admin/layout'
         );
+    }
+
+    public function refreshCache(): void
+    {
+        $root = $this->app->root();
+        (new GithubReleaseClient($root))->clearCache();
+        Flash::set('success', 'Update-Cache wurde geleert. Der GitHub-Stand wird beim nächsten Aufruf neu geladen.');
+        $this->app->redirect('/admin/update');
     }
 
     public function apply(): void
@@ -62,6 +73,15 @@ final class UpdateController extends BaseController
         }
 
         $targetTag = trim((string) $this->app->request()->post('target_tag', ''));
+        $postedMode = strtolower(trim((string) $this->app->request()->post('git_mode', 'tag')));
+        $postedRef = trim((string) $this->app->request()->post('git_ref', ''));
+        if ($postedMode !== 'tag' && $postedMode !== 'branch') {
+            $postedMode = 'tag';
+        }
+        if ($postedRef === '' && $postedMode === 'tag') {
+            $postedRef = $targetTag;
+        }
+
         if ($targetTag === '') {
             Flash::set('error', 'Kein Ziel-Release übermittelt.');
             $this->app->redirect('/admin/update');
@@ -69,10 +89,16 @@ final class UpdateController extends BaseController
             return;
         }
 
-        @unlink(rtrim($root, '/') . '/storage/cache/github_latest.json');
+        (new GithubReleaseClient($root))->clearCache();
         $client = new GithubReleaseClient($root);
-        $remote = $client->fetchLatestCached();
-        if ($remote === null || $remote['tag'] !== $targetTag) {
+        $check = $client->fetchLatestCached();
+        $remote = $check['remote'];
+        if (
+            $remote === null
+            || AppVersion::normalize($remote['tag']) !== AppVersion::normalize($targetTag)
+            || $remote['git_mode'] !== $postedMode
+            || $remote['git_ref'] !== $postedRef
+        ) {
             Flash::set('error', 'Release-Informationen konnten nicht verifiziert werden. Bitte Seite neu laden und erneut versuchen.');
             $this->app->redirect('/admin/update');
 
@@ -87,7 +113,7 @@ final class UpdateController extends BaseController
         }
 
         $updater = new GitApplicationUpdater($root);
-        $result = $updater->run($targetTag);
+        $result = $updater->run($remote['git_ref'], $remote['git_mode']);
         if ($result['ok']) {
             $newLocal = AppVersion::readFromProjectRoot($root);
             Flash::set(

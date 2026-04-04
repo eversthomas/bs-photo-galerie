@@ -48,9 +48,11 @@ final class GitApplicationUpdater
     }
 
     /**
+     * @param 'tag'|'branch' $mode Tag: auschecken. Branch: fetch und harter Reset auf den Remote-Branch.
+     *
      * @return array{ok: bool, log: list<string>}
      */
-    public function run(string $tagName): array
+    public function run(string $refName, string $mode = 'tag'): array
     {
         $log = [];
         if (! self::isWebGitUpdateAllowed()) {
@@ -64,9 +66,19 @@ final class GitApplicationUpdater
         }
 
         $root = rtrim($this->projectRoot, '/');
-        $tag = trim($tagName);
-        if ($tag === '' || ! preg_match('/^[a-zA-Z0-9._-]+$/', $tag)) {
+        $mode = strtolower(trim($mode));
+        if ($mode !== 'tag' && $mode !== 'branch') {
+            return ['ok' => false, 'log' => ['Ungültiger Update-Modus.']];
+        }
+        $ref = trim($refName);
+        if ($ref === '') {
+            return ['ok' => false, 'log' => ['Kein Git-Ref angegeben.']];
+        }
+        if ($mode === 'tag' && ! preg_match('/^[a-zA-Z0-9._-]+$/', $ref)) {
             return ['ok' => false, 'log' => ['Ungültiger Tag-Name.']];
+        }
+        if ($mode === 'branch' && ! preg_match('/^[a-zA-Z0-9\/._-]+$/', $ref)) {
+            return ['ok' => false, 'log' => ['Ungültiger Branch-Name.']];
         }
 
         $status = $this->runProcess($root, ['git', 'status', '--porcelain']);
@@ -84,16 +96,38 @@ final class GitApplicationUpdater
             ];
         }
 
-        $fetch = $this->runProcess($root, ['git', 'fetch', 'origin', '--tags']);
-        $log = array_merge($log, $fetch['lines']);
-        if (! $fetch['ok']) {
-            return ['ok' => false, 'log' => $log];
-        }
+        if ($mode === 'branch') {
+            $fetch = $this->runProcess($root, ['git', 'fetch', 'origin']);
+            $log = array_merge($log, $fetch['lines']);
+            if (! $fetch['ok']) {
+                return ['ok' => false, 'log' => $log];
+            }
+            $checkout = $this->runProcess($root, ['git', 'checkout', $ref]);
+            $log = array_merge($log, $checkout['lines']);
+            if (! $checkout['ok']) {
+                $checkout = $this->runProcess($root, ['git', 'checkout', '-B', $ref, 'origin/' . $ref]);
+                $log = array_merge($log, $checkout['lines']);
+            }
+            if (! $checkout['ok']) {
+                return ['ok' => false, 'log' => $log];
+            }
+            $reset = $this->runProcess($root, ['git', 'reset', '--hard', 'origin/' . $ref]);
+            $log = array_merge($log, $reset['lines']);
+            if (! $reset['ok']) {
+                return ['ok' => false, 'log' => $log];
+            }
+        } else {
+            $fetch = $this->runProcess($root, ['git', 'fetch', 'origin', '--tags']);
+            $log = array_merge($log, $fetch['lines']);
+            if (! $fetch['ok']) {
+                return ['ok' => false, 'log' => $log];
+            }
 
-        $checkout = $this->runProcess($root, ['git', 'checkout', '--force', $tag]);
-        $log = array_merge($log, $checkout['lines']);
-        if (! $checkout['ok']) {
-            return ['ok' => false, 'log' => $log];
+            $checkout = $this->runProcess($root, ['git', 'checkout', '--force', $ref]);
+            $log = array_merge($log, $checkout['lines']);
+            if (! $checkout['ok']) {
+                return ['ok' => false, 'log' => $log];
+            }
         }
 
         $composer = $this->runComposerInstall($root);

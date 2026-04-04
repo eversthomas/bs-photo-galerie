@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Services\Update;
 
 /**
- * Fragt GitHub nach dem neuesten Release bzw. Tag (öffentliches Repo).
+ * GitHub: Release, Tags oder VERSION-Datei auf dem Standard-Branch — mit Diagnose bei Fehlern.
  */
 final class GithubReleaseClient
 {
@@ -19,17 +19,34 @@ final class GithubReleaseClient
     }
 
     /**
-     * @return array{
-     *   tag: string,
-     *   name: string,
-     *   body: string,
-     *   html_url: string,
-     *   zipball_url: string,
-     *   published_at: string,
-     *   source: 'release'|'tag'
-     * }|null
+     * Leert nur den Erfolgs-Cache (z. B. nach neuem Push).
      */
-    public function fetchLatestCached(): ?array
+    public function clearCache(): void
+    {
+        $f = $this->cachePath();
+        if (is_file($f)) {
+            @unlink($f);
+        }
+    }
+
+    /**
+     * @return array{
+     *     remote: array{
+     *       tag:string,
+     *       name:string,
+     *       body:string,
+     *       html_url:string,
+     *       zipball_url:string,
+     *       published_at:string,
+     *       source:string,
+     *       git_mode:string,
+     *       git_ref:string
+     *     }|null,
+     *     error: string|null,
+     *     diagnostic: string|null
+     * }
+     */
+    public function fetchLatestCached(): array
     {
         $cacheFile = $this->cachePath();
         if (is_file($cacheFile)) {
@@ -38,43 +55,57 @@ final class GithubReleaseClient
                 $data = json_decode($raw, true);
                 if (is_array($data) && isset($data['fetched_at'], $data['payload']) && is_array($data['payload'])) {
                     if (time() - (int) $data['fetched_at'] < self::CACHE_TTL_SECONDS) {
-                        return $this->validatePayload($data['payload']);
+                        $payload = $this->validatePayload($data['payload']);
+                        if ($payload !== null) {
+                            return ['remote' => $payload, 'error' => null, 'diagnostic' => null];
+                        }
                     }
                 }
             }
         }
 
-        $payload = $this->fetchLatestFresh();
-        if ($payload === null) {
-            return null;
+        $fresh = $this->fetchLatestFreshDetailed();
+        if ($fresh['remote'] !== null) {
+            $dir = dirname($cacheFile);
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            try {
+                @file_put_contents(
+                    $cacheFile,
+                    json_encode(
+                        ['fetched_at' => time(), 'payload' => $fresh['remote']],
+                        JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+                    )
+                );
+            } catch (\JsonException) {
+            }
         }
 
-        $dir = dirname($cacheFile);
-        if (! is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        try {
-            @file_put_contents(
-                $cacheFile,
-                json_encode(
-                    ['fetched_at' => time(), 'payload' => $payload],
-                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
-                )
-            );
-        } catch (\JsonException) {
-        }
-
-        return $payload;
+        return $fresh;
     }
 
     /**
-     * @return array{tag:string,name:string,body:string,html_url:string,zipball_url:string,published_at:string,source:string}|null
+     * @param array<string, mixed> $p
+     * @return array{
+     *   tag:string,
+     *   name:string,
+     *   body:string,
+     *   html_url:string,
+     *   zipball_url:string,
+     *   published_at:string,
+     *   source:string,
+     *   git_mode:string,
+     *   git_ref:string
+     * }|null
      */
     private function validatePayload(array $p): ?array
     {
         if (! isset($p['tag'], $p['html_url'], $p['zipball_url'], $p['source']) || ! is_string($p['tag'])) {
             return null;
         }
+        $gitMode = isset($p['git_mode']) && is_string($p['git_mode']) ? $p['git_mode'] : 'tag';
+        $gitRef = isset($p['git_ref']) && is_string($p['git_ref']) ? $p['git_ref'] : $p['tag'];
 
         return [
             'tag' => $p['tag'],
@@ -84,79 +115,147 @@ final class GithubReleaseClient
             'zipball_url' => (string) $p['zipball_url'],
             'published_at' => is_string($p['published_at'] ?? null) ? $p['published_at'] : '',
             'source' => (string) $p['source'],
+            'git_mode' => $gitMode,
+            'git_ref' => $gitRef,
         ];
     }
 
     /**
-     * @return array{tag:string,name:string,body:string,html_url:string,zipball_url:string,published_at:string,source:'release'|'tag'}|null
+     * @return array{remote: array<string, string>|null, error: string|null, diagnostic: string|null}
      */
-    private function fetchLatestFresh(): ?array
+    private function fetchLatestFreshDetailed(): array
     {
-        $release = $this->httpGetJson('https://api.github.com/repos/' . self::REPO . '/releases/latest');
+        $diag = [];
+
+        $releaseResp = $this->httpRequest('https://api.github.com/repos/' . self::REPO . '/releases/latest');
+        $diag[] = 'releases/latest HTTP ' . $releaseResp['code'];
+        $release = $releaseResp['data'];
         if (is_array($release) && isset($release['tag_name']) && is_string($release['tag_name']) && $release['tag_name'] !== '') {
             $tag = $release['tag_name'];
 
             return [
-                'tag' => $tag,
-                'name' => is_string($release['name'] ?? '') && $release['name'] !== '' ? $release['name'] : $tag,
-                'body' => is_string($release['body'] ?? '') ? $release['body'] : '',
-                'html_url' => is_string($release['html_url'] ?? '') ? $release['html_url'] : 'https://github.com/' . self::REPO . '/releases',
-                'zipball_url' => is_string($release['zipball_url'] ?? '') ? $release['zipball_url'] : $this->fallbackZipUrl($tag),
-                'published_at' => is_string($release['published_at'] ?? '') ? $release['published_at'] : '',
-                'source' => 'release',
+                'remote' => [
+                    'tag' => $tag,
+                    'name' => is_string($release['name'] ?? '') && $release['name'] !== '' ? $release['name'] : $tag,
+                    'body' => is_string($release['body'] ?? '') ? $release['body'] : '',
+                    'html_url' => is_string($release['html_url'] ?? '') ? $release['html_url'] : 'https://github.com/' . self::REPO . '/releases',
+                    'zipball_url' => is_string($release['zipball_url'] ?? '') ? $release['zipball_url'] : $this->fallbackZipUrl($tag),
+                    'published_at' => is_string($release['published_at'] ?? '') ? $release['published_at'] : '',
+                    'source' => 'release',
+                    'git_mode' => 'tag',
+                    'git_ref' => $tag,
+                ],
+                'error' => null,
+                'diagnostic' => null,
             ];
         }
 
-        return $this->fetchLatestTagOnly();
-    }
-
-    /**
-     * @return array{tag:string,name:string,body:string,html_url:string,zipball_url:string,published_at:string,source:'tag'}|null
-     */
-    private function fetchLatestTagOnly(): ?array
-    {
-        $tags = $this->httpGetJson('https://api.github.com/repos/' . self::REPO . '/tags?per_page=100');
-        if (! is_array($tags) || $tags === []) {
-            return null;
+        if ($releaseResp['code'] === 404) {
+            $diag[] = 'Kein GitHub-Release „latest“ (normal, wenn noch keins existiert).';
+        } elseif ($releaseResp['code'] >= 400 && is_array($release) && isset($release['message'])) {
+            $diag[] = 'GitHub (Release): ' . (string) $release['message'];
         }
 
-        $bestTag = null;
-        $bestNorm = null;
-        foreach ($tags as $row) {
-            if (! is_array($row) || ! isset($row['name']) || ! is_string($row['name'])) {
-                continue;
+        $tagsResp = $this->httpRequest('https://api.github.com/repos/' . self::REPO . '/tags?per_page=100');
+        $diag[] = 'tags HTTP ' . $tagsResp['code'];
+        $tags = $tagsResp['data'];
+        if (is_array($tags) && $tags !== []) {
+            $bestTag = null;
+            $bestNorm = null;
+            foreach ($tags as $row) {
+                if (! is_array($row) || ! isset($row['name']) || ! is_string($row['name'])) {
+                    continue;
+                }
+                $name = $row['name'];
+                $norm = AppVersion::normalize($name);
+                if (! preg_match('/^\d+(\.\d+){0,3}/', $norm)) {
+                    continue;
+                }
+                if ($bestNorm === null || version_compare($norm, $bestNorm, '>')) {
+                    $bestNorm = $norm;
+                    $bestTag = $name;
+                }
             }
-            $name = $row['name'];
-            $norm = AppVersion::normalize($name);
-            if (! preg_match('/^\d+(\.\d+){0,3}/', $norm)) {
-                continue;
+            if ($bestTag !== null && $bestTag !== '') {
+                return [
+                    'remote' => [
+                        'tag' => $bestTag,
+                        'name' => $bestTag,
+                        'body' => '',
+                        'html_url' => 'https://github.com/' . self::REPO . '/releases',
+                        'zipball_url' => $this->fallbackZipUrl($bestTag),
+                        'published_at' => '',
+                        'source' => 'tag',
+                        'git_mode' => 'tag',
+                        'git_ref' => $bestTag,
+                    ],
+                    'error' => null,
+                    'diagnostic' => null,
+                ];
             }
-            if ($bestNorm === null || version_compare($norm, $bestNorm, '>')) {
-                $bestNorm = $norm;
-                $bestTag = $name;
+            $diag[] = 'Kein semver-Tag (z. B. v0.1.2) gefunden — legen Sie Tags an oder pflegen Sie die Datei VERSION auf dem Standard-Branch.';
+        } elseif ($tagsResp['code'] >= 400 && is_array($tags) && isset($tags['message'])) {
+            $diag[] = 'GitHub (Tags): ' . (string) $tags['message'];
+        }
+
+        $repoResp = $this->httpRequest('https://api.github.com/repos/' . self::REPO);
+        $diag[] = 'repo HTTP ' . $repoResp['code'];
+        $repoMeta = $repoResp['data'];
+        if (! is_array($repoMeta) || ! isset($repoMeta['default_branch']) || ! is_string($repoMeta['default_branch'])) {
+            $msg = null;
+            if (is_array($repoMeta) && isset($repoMeta['message'])) {
+                $msg = (string) $repoMeta['message'];
+            }
+
+            return [
+                'remote' => null,
+                'error' => 'GitHub-Repository konnte nicht gelesen werden. Repo öffentlich und Name „' . self::REPO . '“ korrekt?',
+                'diagnostic' => $msg ?? implode("\n", $diag),
+            ];
+        }
+
+        $branch = $repoMeta['default_branch'];
+        $verUrl = 'https://api.github.com/repos/' . self::REPO . '/contents/VERSION?ref=' . rawurlencode($branch);
+        $verResp = $this->httpRequest($verUrl);
+        $diag[] = 'VERSION?ref=' . $branch . ' HTTP ' . $verResp['code'];
+        $verData = $verResp['data'];
+
+        if (is_array($verData) && ($verData['type'] ?? '') === 'file' && isset($verData['content']) && is_string($verData['content'])) {
+            $rawVer = (string) base64_decode(str_replace(["\n", "\r"], '', $verData['content']), true);
+            $norm = AppVersion::normalize($rawVer);
+            if ($norm !== '' && $norm !== '0.0.0') {
+                return [
+                    'remote' => [
+                        'tag' => $norm,
+                        'name' => $norm . ' (Branch ' . $branch . ')',
+                        'body' => 'Stand laut VERSION-Datei auf GitHub (Branch „' . $branch . '“). Kein Release/Tag nötig.',
+                        'html_url' => 'https://github.com/' . self::REPO . '/blob/' . rawurlencode($branch) . '/VERSION',
+                        'zipball_url' => 'https://github.com/' . self::REPO . '/archive/refs/heads/' . rawurlencode($branch) . '.zip',
+                        'published_at' => '',
+                        'source' => 'branch_file',
+                        'git_mode' => 'branch',
+                        'git_ref' => $branch,
+                    ],
+                    'error' => null,
+                    'diagnostic' => null,
+                ];
             }
         }
 
-        if ($bestTag === null || $bestTag === '') {
-            return null;
+        if ($verResp['code'] === 404) {
+            $diag[] = 'Keine VERSION-Datei auf Branch „' . $branch . '“ gefunden.';
         }
 
         return [
-            'tag' => $bestTag,
-            'name' => $bestTag,
-            'body' => '',
-            'html_url' => 'https://github.com/' . self::REPO . '/releases',
-            'zipball_url' => $this->fallbackZipUrl($bestTag),
-            'published_at' => '',
-            'source' => 'tag',
+            'remote' => null,
+            'error' => 'Keine Versionsinfo von GitHub (weder Release, noch passender Tag, noch VERSION auf dem Standard-Branch).',
+            'diagnostic' => implode("\n", $diag),
         ];
     }
 
     private function fallbackZipUrl(string $tag): string
     {
-        $enc = rawurlencode($tag);
-
-        return 'https://github.com/' . self::REPO . '/archive/refs/tags/' . $enc . '.zip';
+        return 'https://github.com/' . self::REPO . '/archive/refs/tags/' . rawurlencode($tag) . '.zip';
     }
 
     private function cachePath(): string
@@ -165,9 +264,9 @@ final class GithubReleaseClient
     }
 
     /**
-     * @return mixed
+     * @return array{code: int, data: mixed, raw: string}
      */
-    private function httpGetJson(string $url): mixed
+    private function httpRequest(string $url): array
     {
         $token = $_ENV['GITHUB_API_TOKEN'] ?? getenv('GITHUB_API_TOKEN');
         $token = is_string($token) ? trim($token) : '';
@@ -175,21 +274,21 @@ final class GithubReleaseClient
         $headers = [
             'Accept: application/vnd.github+json',
             'X-GitHub-Api-Version: 2022-11-28',
-            'User-Agent: BSPhotoGalerie-UpdateCheck',
+            'User-Agent: BSPhotoGalerie-UpdateCheck/1.1',
         ];
         if ($token !== '') {
             $headers[] = 'Authorization: Bearer ' . $token;
         }
 
         if (function_exists('curl_init')) {
-            return $this->curlGetJson($url, $headers);
+            return $this->curlRequest($url, $headers);
         }
 
-        $headerStr = implode("\r\n", $headers);
+        $headerStr = implode("\r\n", $headers) . "\r\n";
         $ctx = stream_context_create([
             'http' => [
-                'header' => $headerStr . "\r\n",
-                'timeout' => 20,
+                'header' => $headerStr,
+                'timeout' => 25,
                 'ignore_errors' => true,
             ],
             'ssl' => [
@@ -197,34 +296,43 @@ final class GithubReleaseClient
                 'verify_peer_name' => true,
             ],
         ]);
-        $body = @file_get_contents($url, false, $ctx);
-        if ($body === false || $body === '') {
-            return null;
+        $http_response_header = [];
+        $raw = @file_get_contents($url, false, $ctx);
+        $code = 0;
+        if (isset($http_response_header[0]) && is_string($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+            $code = (int) $m[1];
+        }
+        if ($raw === false || $raw === '') {
+            return ['code' => $code, 'data' => null, 'raw' => ''];
         }
 
-        return json_decode($body, true);
+        $decoded = json_decode($raw, true);
+
+        return ['code' => $code, 'data' => $decoded, 'raw' => $raw];
     }
 
     /**
      * @param list<string> $headers
+     * @return array{code: int, data: mixed, raw: string}
      */
-    private function curlGetJson(string $url, array $headers): mixed
+    private function curlRequest(string $url, array $headers): array
     {
         $ch = curl_init($url);
         if ($ch === false) {
-            return null;
+            return ['code' => 0, 'data' => null, 'raw' => ''];
         }
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 25);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        $body = curl_exec($ch);
+        $raw = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        if ($body === false || $code < 200 || $code >= 300) {
-            return null;
+        if ($raw === false || $raw === '') {
+            return ['code' => $code, 'data' => null, 'raw' => ''];
         }
+        $decoded = json_decode($raw, true);
 
-        return json_decode($body, true);
+        return ['code' => $code, 'data' => $decoded, 'raw' => $raw];
     }
 }

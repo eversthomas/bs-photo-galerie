@@ -382,6 +382,7 @@ final class Application
                 $r->addRoute('GET', '/settings', [SettingsController::class, 'index']);
                 $r->addRoute('POST', '/settings/update', [SettingsController::class, 'update']);
                 $r->addRoute('GET', '/update', [UpdateController::class, 'index']);
+                $r->addRoute('POST', '/update/refresh', [UpdateController::class, 'refreshCache']);
                 $r->addRoute('POST', '/update/apply', [UpdateController::class, 'apply']);
             });
         });
