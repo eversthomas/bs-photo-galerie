@@ -107,6 +107,7 @@ final class InstallerService
 
             $this->writeConfigFile($config);
             $this->writeInstallLock($installedAt);
+            $this->writeVersionFile();
 
             return ['ok' => true, 'message' => 'Installation erfolgreich abgeschlossen.'];
         } catch (PDOException $e) {
@@ -316,6 +317,15 @@ PHP;
         }
 
         @chmod($path, 0640);
+    }
+
+    private function writeVersionFile(): void
+    {
+        $path = $this->projectRoot . '/VERSION';
+        if (is_file($path)) {
+            return;
+        }
+        @file_put_contents($path, "0.1.0\n", LOCK_EX);
     }
 
     private function writeInstallLock(string $installedAt): void

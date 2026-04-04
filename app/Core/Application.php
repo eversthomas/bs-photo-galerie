@@ -13,6 +13,7 @@ use BSPhotoGalerie\Controllers\Admin\LoginController;
 use BSPhotoGalerie\Controllers\Admin\ImportController;
 use BSPhotoGalerie\Controllers\Admin\MediaController;
 use BSPhotoGalerie\Controllers\Admin\SettingsController;
+use BSPhotoGalerie\Controllers\Admin\UpdateController;
 use BSPhotoGalerie\Controllers\GalleryController;
 use BSPhotoGalerie\Controllers\HomeController;
 use BSPhotoGalerie\Controllers\ThumbController;
@@ -363,6 +364,8 @@ final class Application
                 $r->addRoute('POST', '/import/run', [ImportController::class, 'run']);
                 $r->addRoute('GET', '/settings', [SettingsController::class, 'index']);
                 $r->addRoute('POST', '/settings/update', [SettingsController::class, 'update']);
+                $r->addRoute('GET', '/update', [UpdateController::class, 'index']);
+                $r->addRoute('POST', '/update/apply', [UpdateController::class, 'apply']);
             });
         });
 

@@ -287,6 +287,63 @@
     font-size: 0.78rem;
 }
 
+.update-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0;
+}
+
+.update-card {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid var(--admin-border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+}
+
+.update-card-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: var(--admin-muted);
+}
+
+.update-version {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.update-section-title {
+    margin: 1.75rem 0 0.5rem;
+    font-size: 1.1rem;
+}
+
+.update-checklist {
+    margin: 0.75rem 0 1rem;
+    padding-left: 1.25rem;
+}
+
+.update-notes {
+    margin: 1rem 0;
+}
+
+.update-body {
+    white-space: pre-wrap;
+    font-size: 0.82rem;
+    max-height: 16rem;
+    overflow: auto;
+    background: #020617;
+    border: 1px solid var(--admin-border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.5rem 0 0;
+}
+
+.update-apply-form {
+    max-width: 40rem;
+    margin-top: 1rem;
+}
+
 .admin-shortcuts {
     margin: 1rem 0;
     padding-left: 1.25rem;

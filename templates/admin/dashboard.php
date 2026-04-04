@@ -16,6 +16,6 @@ declare(strict_types=1);
         <li><a href="<?= htmlspecialchars($app->url('/admin/media/upload'), ENT_QUOTES, 'UTF-8') ?>">Bilder hochladen</a></li>
         <li><a href="<?= htmlspecialchars($app->url('/admin/import'), ENT_QUOTES, 'UTF-8') ?>">Ordner- / FTP-Import</a></li>
         <li><a href="<?= htmlspecialchars($app->url('/admin/categories'), ENT_QUOTES, 'UTF-8') ?>">Kategorien</a></li>
+        <li><a href="<?= htmlspecialchars($app->url('/admin/update'), ENT_QUOTES, 'UTF-8') ?>">Software-Update (GitHub)</a></li>
     </ul>
-    <p class="muted small">Kategorien und Tags werden in Phase&nbsp;5 vertieft.</p>
 </section>

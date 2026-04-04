@@ -31,6 +31,7 @@ declare(strict_types=1);
             <a href="<?= htmlspecialchars($app->url('/admin/import'), ENT_QUOTES, 'UTF-8') ?>">Import</a>
             <a href="<?= htmlspecialchars($app->url('/admin/categories'), ENT_QUOTES, 'UTF-8') ?>">Kategorien</a>
             <a href="<?= htmlspecialchars($app->url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>">Einstellungen</a>
+            <a href="<?= htmlspecialchars($app->url('/admin/update'), ENT_QUOTES, 'UTF-8') ?>">Update</a>
         </nav>
         <nav class="admin-nav">
             <span class="admin-user" title="Angemeldet"><?= htmlspecialchars($user->username, ENT_QUOTES, 'UTF-8') ?></span>
