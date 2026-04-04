@@ -1,0 +1,13 @@
+# Document Root – Front Controller (Phase 2)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Uploads: keine PHP-Ausführung (Vorbereitung)
+<IfModule mod_rewrite.c>
+    RewriteRule ^uploads/.*\.(?:php|phtml|phar)$ - [F,L]
+</IfModule>

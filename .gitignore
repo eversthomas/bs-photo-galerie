@@ -1,0 +1,9 @@
+/vendor/
+/config/.env
+/config/config.php
+/storage/locks/install.lock
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/thumbnails/*
+!/storage/thumbnails/.gitkeep
+.DS_Store
