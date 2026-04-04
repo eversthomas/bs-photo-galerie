@@ -28,11 +28,11 @@ $layoutWidth = PublicAppearance::normalizeLayoutWidth($settings->get('public_lay
       data-public-theme="<?= htmlspecialchars($publicTheme, ENT_QUOTES, 'UTF-8') ?>"
       data-layout-width="<?= htmlspecialchars($layoutWidth, ENT_QUOTES, 'UTF-8') ?>">
 <header class="public-header">
-    <a class="public-logo" href="<?= htmlspecialchars($app->url('/'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($app->settingsRepository()->get('site_title', 'BS Photo Galerie'), ENT_QUOTES, 'UTF-8') ?></a>
+    <a class="public-logo" href="<?= htmlspecialchars($app->publicUrl('/'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($app->settingsRepository()->get('site_title', 'BS Photo Galerie'), ENT_QUOTES, 'UTF-8') ?></a>
     <nav class="public-nav" aria-label="Hauptnavigation">
-        <a href="<?= htmlspecialchars($app->url('/'), ENT_QUOTES, 'UTF-8') ?>">Start</a>
-        <a href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Galerie</a>
-        <a href="<?= htmlspecialchars($app->url('/admin/login'), ENT_QUOTES, 'UTF-8') ?>" class="public-nav-admin">Verwaltung</a>
+        <a href="<?= htmlspecialchars($app->publicUrl('/'), ENT_QUOTES, 'UTF-8') ?>">Start</a>
+        <a href="<?= htmlspecialchars($app->publicUrl('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Galerie</a>
+        <a href="<?= htmlspecialchars($app->publicUrl('/admin/login'), ENT_QUOTES, 'UTF-8') ?>" class="public-nav-admin">Verwaltung</a>
     </nav>
 </header>
 
@@ -41,7 +41,8 @@ $layoutWidth = PublicAppearance::normalizeLayoutWidth($settings->get('public_lay
 </main>
 
 <footer class="public-footer">
-    <small>BS Photo Galerie · <a href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Galerie</a></small>
+    <small>BS Photo Galerie · <a href="<?= htmlspecialchars($app->publicUrl('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Galerie</a>
+        · <a href="<?= htmlspecialchars($app->publicUrl('/admin/login'), ENT_QUOTES, 'UTF-8') ?>">Verwaltung</a></small>
 </footer>
 
 <?php if ($includeGallery) : ?>

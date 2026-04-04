@@ -231,6 +231,7 @@ final class InstallerService
             ['music_playlist', ''],
             ['public_theme', 'default'],
             ['public_layout_width', 'standard'],
+            ['public_base_url', ''],
         ];
 
         $stmt = $pdo->prepare(
@@ -325,7 +326,7 @@ PHP;
         if (is_file($path)) {
             return;
         }
-        @file_put_contents($path, "0.1.0\n", LOCK_EX);
+        @file_put_contents($path, "0.1.1\n", LOCK_EX);
     }
 
     private function writeInstallLock(string $installedAt): void

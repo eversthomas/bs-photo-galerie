@@ -437,6 +437,61 @@ a:hover {
     margin-bottom: 1rem;
 }
 
+.media-period-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+    margin: 0.75rem 0 0.25rem;
+}
+
+.media-period-tab {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--admin-border);
+    color: var(--admin-muted);
+    text-decoration: none;
+    font-size: 0.86rem;
+    font-weight: 500;
+}
+
+.media-period-tab:hover {
+    color: var(--admin-accent);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.media-period-tab.is-active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.45);
+    color: var(--admin-text);
+}
+
+.media-period-hint {
+    margin: 0.35rem 0 1rem;
+}
+
+.media-bulk-selectall {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    font-size: 0.88rem;
+}
+
+.media-bulk-selectall span {
+    color: var(--admin-text);
+    padding-top: 0;
+}
+
+.media-grid-static .media-card {
+    cursor: default;
+}
+
+.media-grid-static .media-select-wrap {
+    top: 4px;
+    left: 4px;
+}
+
 .media-bulk-bar {
     display: flex;
     flex-wrap: wrap;

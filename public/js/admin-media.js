@@ -1,13 +1,30 @@
 /**
- * Drag & Drop Sortierung der Medienkarten (Vanilla JS).
+ * Medien: optional Sortierung (nur Ansicht „Alle“), „Alle auswählen“ für Bulk-Kategorie.
  */
 (function () {
     'use strict';
 
     var grid = document.getElementById('media-sortable');
+    var selectAll = document.getElementById('bulk-select-all');
+
+    if (selectAll && grid) {
+        selectAll.addEventListener('change', function () {
+            var on = selectAll.checked;
+            var boxes = grid.querySelectorAll('.media-select-cb');
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = on;
+            }
+        });
+    }
+
+    if (!grid) {
+        return;
+    }
+
+    var sortOn = grid.getAttribute('data-sortable') === '1';
     var input = document.getElementById('reorder-input');
     var dirty = document.getElementById('reorder-dirty');
-    if (!grid || !input) {
+    if (!sortOn || !input) {
         return;
     }
 

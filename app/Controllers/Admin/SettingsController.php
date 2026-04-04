@@ -32,6 +32,7 @@ final class SettingsController extends BaseController
                 'musicPlaylist' => $settings->get('music_playlist', ''),
                 'publicTheme' => PublicAppearance::normalizeTheme($settings->get('public_theme', 'default')),
                 'publicLayoutWidth' => PublicAppearance::normalizeLayoutWidth($settings->get('public_layout_width', 'standard')),
+                'publicBaseUrl' => $settings->get('public_base_url', ''),
             ],
             'admin/layout'
         );
@@ -78,6 +79,21 @@ final class SettingsController extends BaseController
         $repo->set('music_playlist', $normalizedPlaylist);
         $repo->set('public_theme', $theme);
         $repo->set('public_layout_width', $layoutWidth);
+
+        $baseUrl = trim((string) $this->app->request()->post('public_base_url', ''));
+        if ($baseUrl !== '' && filter_var($baseUrl, FILTER_VALIDATE_URL) === false) {
+            Flash::set('error', 'Öffentliche Basis-URL ist ungültig (vollständige URL mit https:// …).');
+            $this->app->redirect('/admin/settings');
+
+            return;
+        }
+        if ($baseUrl !== '' && str_contains($baseUrl, "\n")) {
+            Flash::set('error', 'Öffentliche Basis-URL ungültig.');
+            $this->app->redirect('/admin/settings');
+
+            return;
+        }
+        $repo->set('public_base_url', $baseUrl);
 
         Flash::set('success', 'Einstellungen gespeichert.');
         $this->app->redirect('/admin/settings');

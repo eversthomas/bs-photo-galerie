@@ -14,6 +14,7 @@ final class HomeController extends BaseController
         $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
         $description = $this->app->settingsRepository()->get('site_description', '');
         $preview = $this->app->mediaRepository()->listPublicVisible(12, 0, null);
+        $categories = $this->app->categoryRepository()->listAllOrdered();
 
         $this->render(
             'home',
@@ -22,6 +23,7 @@ final class HomeController extends BaseController
                 'siteTitle' => $siteTitle,
                 'siteDescription' => $description,
                 'previewItems' => $preview,
+                'categories' => $categories,
                 'includeGalleryAssets' => false,
             ],
             'public/layout'

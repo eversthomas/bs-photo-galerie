@@ -13,9 +13,19 @@ use BSPhotoGalerie\Services\Media\UploadedFiles;
  */
 final class MediaController extends BaseController
 {
+    /** @var array<string, string> */
+    private const MEDIA_PERIOD_LABELS = [
+        'all' => 'Alle',
+        'hour' => 'Letzte Stunde',
+        'day' => 'Letzte 7 Tage',
+        'week' => 'Letzte 4 Wochen',
+        'month' => 'Letzte 12 Monate',
+    ];
+
     public function index(): void
     {
-        $items = $this->app->mediaRepository()->listRecent(200, 0);
+        $period = $this->normalizeMediaPeriod($this->app->request()->query('period', 'all') ?? 'all');
+        $items = $this->app->mediaRepository()->listByUploadPeriod($period, 200, 0);
         $categories = $this->app->categoryRepository()->listAllOrdered();
         $this->render(
             'admin/media/index',
@@ -23,6 +33,9 @@ final class MediaController extends BaseController
                 'title' => 'Medien',
                 'items' => $items,
                 'categories' => $categories,
+                'mediaPeriod' => $period,
+                'mediaPeriodLabel' => self::MEDIA_PERIOD_LABELS[$period] ?? 'Alle',
+                'mediaPeriodLabels' => self::MEDIA_PERIOD_LABELS,
                 'user' => $this->app->auth()->user(),
                 'flash' => Flash::pull() ?? [],
             ],
@@ -139,10 +152,22 @@ final class MediaController extends BaseController
 
     public function reorder(): void
     {
+        $period = $this->normalizeMediaPeriod((string) $this->app->request()->post('period', 'all'));
+        $q = $this->mediaPeriodQuery($period);
+
         $raw = $this->app->request()->post('order');
         if (! is_string($raw) || trim($raw) === '') {
             Flash::set('error', 'Keine Reihenfolge übermittelt.');
-            $this->app->redirect('/admin/media');
+            $this->app->redirect('/admin/media' . $q);
+
+            return;
+        }
+
+        if ($period !== 'all') {
+            Flash::set('error', 'Reihenfolge ist nur in der Ansicht „Alle“ möglich.');
+            $this->app->redirect('/admin/media' . $q);
+
+            return;
         }
 
         $parts = array_map('trim', explode(',', $raw));
@@ -153,7 +178,7 @@ final class MediaController extends BaseController
             }
         }
 
-        $items = $this->app->mediaRepository()->listRecent(200, 0);
+        $items = $this->app->mediaRepository()->listByUploadPeriod('all', 200, 0);
         $expected = array_map(static fn ($m) => $m->id, $items);
         $expectedSorted = $expected;
         sort($expectedSorted);
@@ -162,12 +187,14 @@ final class MediaController extends BaseController
 
         if ($expectedSorted !== $gotSorted || count($ids) !== count($expected)) {
             Flash::set('error', 'Sortierung ungültig (Kontext hat sich geändert). Bitte Seite neu laden.');
-            $this->app->redirect('/admin/media');
+            $this->app->redirect('/admin/media' . $q);
+
+            return;
         }
 
         $this->app->mediaRepository()->reorderByOrderedIds($ids);
         Flash::set('success', 'Reihenfolge gespeichert.');
-        $this->app->redirect('/admin/media');
+        $this->app->redirect('/admin/media' . $q);
     }
 
     public function bulkCategory(): void
@@ -186,7 +213,9 @@ final class MediaController extends BaseController
 
         if ($ids === []) {
             Flash::set('error', 'Bitte mindestens ein Bild auswählen.');
-            $this->app->redirect('/admin/media');
+            $this->app->redirect('/admin/media' . $this->mediaPeriodQuery(
+                $this->normalizeMediaPeriod((string) $this->app->request()->post('period', 'all'))
+            ));
 
             return;
         }
@@ -212,7 +241,9 @@ final class MediaController extends BaseController
                     : $updated . ' Bilder wurden der Kategorie zugewiesen.'
             );
         }
-        $this->app->redirect('/admin/media');
+        $this->app->redirect('/admin/media' . $this->mediaPeriodQuery(
+            $this->normalizeMediaPeriod((string) $this->app->request()->post('period', 'all'))
+        ));
     }
 
     public function inlineTitle(): void
@@ -259,5 +290,15 @@ final class MediaController extends BaseController
         }
 
         return null;
+    }
+
+    private function normalizeMediaPeriod(string $raw): string
+    {
+        return isset(self::MEDIA_PERIOD_LABELS[$raw]) ? $raw : 'all';
+    }
+
+    private function mediaPeriodQuery(string $period): string
+    {
+        return $period === 'all' ? '' : ('?period=' . rawurlencode($period));
     }
 }

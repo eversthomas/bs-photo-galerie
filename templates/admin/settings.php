@@ -11,13 +11,24 @@ declare(strict_types=1);
 /** @var string $musicPlaylist */
 /** @var string $publicTheme */
 /** @var string $publicLayoutWidth */
+/** @var string $publicBaseUrl */
 ?>
 <section class="admin-panel">
     <h1>Galerie-Einstellungen</h1>
-    <p class="muted">Öffentliche Website, Lightbox und Darstellung (<a href="<?= htmlspecialchars($app->url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Startseite</a>, <a href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>).</p>
+    <p class="muted">Öffentliche Website, Lightbox und Darstellung (<a href="<?= htmlspecialchars($app->publicUrl('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Startseite</a>, <a href="<?= htmlspecialchars($app->publicUrl('/galerie'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>).</p>
 
     <form method="post" action="<?= htmlspecialchars($app->url('/admin/settings/update'), ENT_QUOTES, 'UTF-8') ?>" class="admin-form wide">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+
+        <fieldset class="admin-fieldset">
+            <legend>Öffentliche Adresse (Hauptdomain)</legend>
+            <label class="field">
+                <span>Basis-URL der Galerie (optional)</span>
+                <input type="url" name="public_base_url" value="<?= htmlspecialchars($publicBaseUrl, ENT_QUOTES, 'UTF-8') ?>"
+                       placeholder="https://fotos.example.de" inputmode="url" autocomplete="off">
+            </label>
+            <p class="small muted">Wenn gesetzt, verwenden Startseite und Navigation <strong>absolute Links</strong> zu Galerie und Verwaltung (hilft bei kanonischer Subdomain). Leer lassen = relativ zur aktuellen Domain.</p>
+        </fieldset>
 
         <fieldset class="admin-fieldset">
             <legend>Öffentliche Darstellung</legend>

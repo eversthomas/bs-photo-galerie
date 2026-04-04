@@ -27,10 +27,10 @@ $galleryRuntimeJson = json_encode(
 
     <?php if ($categories !== []) : ?>
         <nav class="gallery-filters" aria-label="Kategorien">
-            <a class="gallery-filter<?= ! $isFiltered ? ' is-active' : '' ?>" href="<?= htmlspecialchars($app->url('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Alle</a>
+            <a class="gallery-filter<?= ! $isFiltered ? ' is-active' : '' ?>" href="<?= htmlspecialchars($app->publicUrl('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Alle</a>
             <?php foreach ($categories as $c) : ?>
                 <a class="gallery-filter<?= ($isFiltered && $currentCategory['id'] === $c['id']) ? ' is-active' : '' ?>"
-                   href="<?= htmlspecialchars($app->url('/galerie/kategorie/' . rawurlencode($c['slug'])), ENT_QUOTES, 'UTF-8') ?>">
+                   href="<?= htmlspecialchars($app->publicUrl('/galerie/kategorie/' . rawurlencode($c['slug'])), ENT_QUOTES, 'UTF-8') ?>">
                     <?= htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8') ?>
                 </a>
             <?php endforeach; ?>
@@ -45,12 +45,12 @@ $galleryRuntimeJson = json_encode(
                 <button type="button"
                         class="gallery-tile"
                         data-index="<?= $i ?>"
-                        data-full="<?= htmlspecialchars($app->url('/' . $m->storagePath), ENT_QUOTES, 'UTF-8') ?>"
+                        data-full="<?= htmlspecialchars($app->publicUrl('/' . $m->storagePath), ENT_QUOTES, 'UTF-8') ?>"
                         data-title="<?= htmlspecialchars($m->title !== '' ? $m->title : $m->filename, ENT_QUOTES, 'UTF-8') ?>"
                         data-desc="<?= htmlspecialchars($m->description, ENT_QUOTES, 'UTF-8') ?>"
                         aria-label="<?= htmlspecialchars($m->title !== '' ? $m->title : 'Bild vergrößern', ENT_QUOTES, 'UTF-8') ?>">
                     <img class="gallery-tile-img"
-                         src="<?= htmlspecialchars($app->url('/thumb/' . $m->id), ENT_QUOTES, 'UTF-8') ?>"
+                         src="<?= htmlspecialchars($app->publicUrl('/thumb/' . $m->id), ENT_QUOTES, 'UTF-8') ?>"
                          alt=""
                          width="400" height="400"
                          loading="lazy"

@@ -216,6 +216,23 @@ final class Application
         return $prefix . $path;
     }
 
+    /**
+     * Öffentliche URL mit optional gesetzter Hauptdomain (Einstellung public_base_url), sonst wie url().
+     */
+    public function publicUrl(string $path): string
+    {
+        $raw = trim($this->settingsRepository()->get('public_base_url', ''));
+        if ($raw === '') {
+            return $this->url($path);
+        }
+        $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
+        if ($path === '//') {
+            $path = '/';
+        }
+
+        return rtrim($raw, '/') . $path;
+    }
+
     public function redirect(string $path, int $status = 302): void
     {
         header('Location: ' . $this->url($path), true, $status);

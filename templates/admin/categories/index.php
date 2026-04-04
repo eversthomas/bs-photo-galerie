@@ -32,7 +32,7 @@ declare(strict_types=1);
                     <td><?= (int) $c['sort_order'] ?></td>
                     <td class="small nowrap">
                         <?php
-                        $galUrl = $app->url('/galerie/kategorie/' . rawurlencode($c['slug']));
+                        $galUrl = $app->publicUrl('/galerie/kategorie/' . rawurlencode($c['slug']));
                         $diaUrl = $galUrl . '?diashow=1';
                         ?>
                         <a href="<?= htmlspecialchars($galUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>

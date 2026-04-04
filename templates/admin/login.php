@@ -20,5 +20,5 @@ declare(strict_types=1);
         </label>
         <button type="submit" class="button-primary">Anmelden</button>
     </form>
-    <p class="small muted"><a href="<?= htmlspecialchars($app->url('/'), ENT_QUOTES, 'UTF-8') ?>">Zurück zur Startseite</a></p>
+    <p class="small muted"><a href="<?= htmlspecialchars($app->publicUrl('/'), ENT_QUOTES, 'UTF-8') ?>">Zurück zur Startseite</a></p>
 </section>

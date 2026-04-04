@@ -54,14 +54,35 @@ final class MediaRepository
      */
     public function listRecent(int $limit = 100, int $offset = 0): array
     {
+        return $this->listByUploadPeriod('all', $limit, $offset);
+    }
+
+    /**
+     * Medienliste für das Backend nach Upload-Zeitraum (created_at).
+     *
+     * @param 'all'|'hour'|'day'|'week'|'month' $period
+     *
+     * @return list<Media>
+     */
+    public function listByUploadPeriod(string $period, int $limit = 200, int $offset = 0): array
+    {
         $limit = max(1, min($limit, 500));
         $offset = max(0, $offset);
 
-        $rows = $this->database->fetchAll(
-            'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
-             FROM media ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
-            [$limit, $offset]
-        );
+        $where = '';
+        if ($period === 'hour') {
+            $where = ' WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)';
+        } elseif ($period === 'day') {
+            $where = ' WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+        } elseif ($period === 'week') {
+            $where = ' WHERE created_at >= DATE_SUB(NOW(), INTERVAL 28 DAY)';
+        } elseif ($period === 'month') {
+            $where = ' WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)';
+        }
+
+        $sql = 'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+             FROM media' . $where . ' ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?';
+        $rows = $this->database->fetchAll($sql, [$limit, $offset]);
 
         $out = [];
         foreach ($rows as $row) {
