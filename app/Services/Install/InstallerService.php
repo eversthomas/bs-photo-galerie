@@ -326,7 +326,7 @@ PHP;
         if (is_file($path)) {
             return;
         }
-        @file_put_contents($path, "0.1.1\n", LOCK_EX);
+        @file_put_contents($path, "0.1.2\n", LOCK_EX);
     }
 
     private function writeInstallLock(string $installedAt): void

@@ -12,6 +12,15 @@ $action = $isEdit
 ?>
 <section class="admin-panel">
     <h1><?= $isEdit ? 'Kategorie bearbeiten' : 'Kategorie anlegen' ?></h1>
+    <?php if ($isEdit) : ?>
+        <?php
+        $galleryCategoryUrl = $app->publicUrl('/galerie/kategorie/' . $category['slug']);
+        ?>
+        <p class="small">
+            <a href="<?= htmlspecialchars($galleryCategoryUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Frontend-Galerie dieser Kategorie öffnen</a>
+            <span class="muted"> — öffentliche Ansicht in neuem Tab</span>
+        </p>
+    <?php endif; ?>
     <form method="post" action="<?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8') ?>" class="admin-form">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <label class="field">
