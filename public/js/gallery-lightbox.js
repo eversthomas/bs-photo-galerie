@@ -39,6 +39,7 @@
     }
 
     var dialog = document.getElementById('gallery-lightbox');
+    var fsRoot = document.getElementById('lb-fs-root');
     var grid = document.getElementById('gallery-grid');
     if (!dialog || !grid) {
         return;
@@ -56,6 +57,79 @@
     var groupSlideshow = document.getElementById('lb-group-slideshow');
     var groupMusic = document.getElementById('lb-group-music');
     var audio = document.getElementById('gallery-bg-audio');
+
+    var fauxFullscreenActive = false;
+
+    function getFullscreenElement() {
+        return (
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement ||
+            null
+        );
+    }
+
+    function requestFullscreenEl(el) {
+        if (!el) {
+            return Promise.reject();
+        }
+        if (typeof el.requestFullscreen === 'function') {
+            return el.requestFullscreen();
+        }
+        if (typeof el.webkitRequestFullscreen === 'function') {
+            return el.webkitRequestFullscreen();
+        }
+        if (typeof el.webkitRequestFullScreen === 'function') {
+            return el.webkitRequestFullScreen();
+        }
+        if (typeof el.msRequestFullscreen === 'function') {
+            return el.msRequestFullscreen();
+        }
+
+        return Promise.reject();
+    }
+
+    function exitFullscreenDoc() {
+        var d = document;
+        if (typeof d.exitFullscreen === 'function' && getFullscreenElement()) {
+            return d.exitFullscreen();
+        }
+        if (typeof d.webkitExitFullscreen === 'function' && d.webkitFullscreenElement) {
+            return d.webkitExitFullscreen();
+        }
+        if (typeof d.mozCancelFullScreen === 'function' && d.mozFullScreenElement) {
+            return d.mozCancelFullScreen();
+        }
+        if (typeof d.msExitFullscreen === 'function' && d.msFullscreenElement) {
+            return d.msExitFullscreen();
+        }
+
+        return Promise.resolve();
+    }
+
+    function setFsButtonState(on) {
+        if (!btnFs) {
+            return;
+        }
+        btnFs.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btnFs.textContent = on ? 'Vollbild beenden' : 'Vollbild';
+        btnFs.setAttribute('title', on && fauxFullscreenActive ? 'Randlos beenden (ohne Browser-Vollbild)' : 'Vollbildmodus');
+    }
+
+    function isFsUiActive() {
+        if (fauxFullscreenActive) {
+            return true;
+        }
+        return dialog.open && getFullscreenElement() !== null;
+    }
+
+    function syncFsButtonFromDom() {
+        if (!dialog.open) {
+            return;
+        }
+        setFsButtonState(isFsUiActive());
+    }
 
     var items = [];
     var current = 0;
@@ -232,10 +306,15 @@
             groupMusic.hidden = !showMusic;
         }
         if (groupSlideshow && btnSlideshow && selInterval) {
-            var showSlideshow = slideshowAllowed();
-            groupSlideshow.hidden = !showSlideshow;
-            selInterval.disabled = !showSlideshow;
-            btnSlideshow.disabled = !showSlideshow;
+            var multi = items.length > 1;
+            groupSlideshow.hidden = !multi;
+            selInterval.disabled = !multi;
+            btnSlideshow.disabled = !slideshowAllowed();
+            if (btnSlideshow) {
+                btnSlideshow.title = slideshowAllowed()
+                    ? 'Diashow starten oder pausieren'
+                    : 'Diashow ist in der Verwaltung unter Einstellungen deaktiviert (oder nur ein Bild). Mit ?diashow=1 in der URL testen.';
+            }
         }
         if (selInterval && selInterval.options.length === 0) {
             for (var j = 0; j < intervalChoices.length; j++) {
@@ -264,13 +343,14 @@
         clearImage();
         stopSlideshow();
         pauseMusic();
-        if (document.fullscreenElement === dialog) {
-            document.exitFullscreen().catch(function () {});
+        fauxFullscreenActive = false;
+        if (fsRoot) {
+            fsRoot.classList.remove('lb-faux-fullscreen');
         }
-        if (btnFs) {
-            btnFs.setAttribute('aria-pressed', 'false');
-            btnFs.textContent = 'Vollbild';
+        if (getFullscreenElement()) {
+            exitFullscreenDoc().catch(function () {});
         }
+        setFsButtonState(false);
     }
 
     dialog.addEventListener('close', cleanupOnClose);
@@ -289,12 +369,16 @@
     });
 
     if (btnPrev) {
-        btnPrev.addEventListener('click', function () {
+        btnPrev.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             show(current - 1);
         });
     }
     if (btnNext) {
-        btnNext.addEventListener('click', function () {
+        btnNext.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             show(current + 1);
         });
     }
@@ -321,33 +405,54 @@
     }
 
     if (btnFs) {
-        btnFs.addEventListener('click', function () {
-            if (!document.fullscreenElement) {
-                dialog
-                    .requestFullscreen()
-                    .then(function () {
-                        btnFs.setAttribute('aria-pressed', 'true');
-                        btnFs.textContent = 'Vollbild beenden';
-                    })
-                    .catch(function () {});
-            } else {
-                document.exitFullscreen();
+        btnFs.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (fauxFullscreenActive) {
+                fauxFullscreenActive = false;
+                if (fsRoot) {
+                    fsRoot.classList.remove('lb-faux-fullscreen');
+                }
+                setFsButtonState(false);
+                return;
             }
+            if (getFullscreenElement()) {
+                exitFullscreenDoc()
+                    .then(function () {
+                        setFsButtonState(false);
+                    })
+                    .catch(function () {
+                        setFsButtonState(false);
+                    });
+                return;
+            }
+            var candidates = [fsRoot, dialog, document.documentElement].filter(function (n) {
+                return !!n;
+            });
+            (function tryEnter(i) {
+                if (i >= candidates.length) {
+                    if (fsRoot) {
+                        fauxFullscreenActive = true;
+                        fsRoot.classList.add('lb-faux-fullscreen');
+                    }
+                    setFsButtonState(true);
+                    return;
+                }
+                requestFullscreenEl(candidates[i])
+                    .then(function () {
+                        setFsButtonState(true);
+                    })
+                    .catch(function () {
+                        tryEnter(i + 1);
+                    });
+            })(0);
         });
     }
 
-    document.addEventListener('fullscreenchange', function () {
-        if (!btnFs) {
-            return;
-        }
-        if (document.fullscreenElement === dialog) {
-            btnFs.setAttribute('aria-pressed', 'true');
-            btnFs.textContent = 'Vollbild beenden';
-        } else {
-            btnFs.setAttribute('aria-pressed', 'false');
-            btnFs.textContent = 'Vollbild';
-        }
-    });
+    document.addEventListener('fullscreenchange', syncFsButtonFromDom);
+    document.addEventListener('webkitfullscreenchange', syncFsButtonFromDom);
+    document.addEventListener('mozfullscreenchange', syncFsButtonFromDom);
+    document.addEventListener('MSFullscreenChange', syncFsButtonFromDom);
 
     if (audio) {
         audio.addEventListener('ended', onAudioEnded);
@@ -364,7 +469,15 @@
             return;
         }
         if (e.key === 'Escape') {
-            if (document.fullscreenElement === dialog) {
+            if (getFullscreenElement() !== null) {
+                return;
+            }
+            if (fauxFullscreenActive) {
+                fauxFullscreenActive = false;
+                if (fsRoot) {
+                    fsRoot.classList.remove('lb-faux-fullscreen');
+                }
+                setFsButtonState(false);
                 return;
             }
             close();

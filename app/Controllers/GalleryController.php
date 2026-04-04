@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Controllers;
 
+use BSPhotoGalerie\Core\Application;
+
 /**
  * Öffentliche Bildgalerie (Lightbox, Kategoriefilter).
  */
@@ -18,11 +20,17 @@ final class GalleryController extends BaseController
         $interval = (int) $settings->get('slideshow_interval_seconds', '5');
         $interval = max(3, min(120, $interval));
 
+        $rawLines = self::parseMusicPlaylistLines($settings->get('music_playlist', ''));
+        $musicUrls = [];
+        foreach ($rawLines as $line) {
+            $musicUrls[] = self::resolvePublicMediaUrl($this->app, $line);
+        }
+
         return [
             'slideshowEnabled' => $settings->get('slideshow_enabled', '0') === '1',
             'slideshowInterval' => $interval,
             'musicEnabled' => $settings->get('background_music_enabled', '0') === '1',
-            'musicUrls' => self::parseMusicPlaylistLines($settings->get('music_playlist', '')),
+            'musicUrls' => $musicUrls,
         ];
     }
 
@@ -41,6 +49,18 @@ final class GalleryController extends BaseController
         }
 
         return $out;
+    }
+
+    /**
+     * Stellt absolute Wiedergabe-URLs für das Hintergrund-Audio sicher (v. a. bei gesetzter public_base_url).
+     */
+    private static function resolvePublicMediaUrl(Application $app, string $line): string
+    {
+        if (str_starts_with($line, '/')) {
+            return $app->publicUrl($line);
+        }
+
+        return $line;
     }
 
     public function index(): void

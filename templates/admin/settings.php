@@ -75,7 +75,7 @@ declare(strict_types=1);
                 <span>Wiedergabeliste (eine URL pro Zeile)</span>
                 <textarea name="music_playlist" rows="6" class="mono" placeholder="https://example.com/music.mp3&#10;/musik/track1.mp3"><?= htmlspecialchars($musicPlaylist, ENT_QUOTES, 'UTF-8') ?></textarea>
             </label>
-            <p class="small muted">Erlaubt: absolute Pfade ab „/“ (Dateien unter <code>public/</code>) oder <code>http(s)://</code>. Bei mehreren Einträgen wird nacheinander abgespielt.</p>
+            <p class="small muted">Checkbox aktivieren <strong>und</strong> mindestens eine gültige URL eintragen, sonst erscheint kein Musik-Button. Erlaubt: Pfade ab „/“ (Dateien unter <code>public/</code>, z.&nbsp;B. <code>/audio/stueck.mp3</code>) oder <code>http(s)://</code>. Bei gesetzter Basis-URL der Galerie werden lokale Pfade automatisch vollständig adressiert. Mehrere Zeilen = Wiedergabe nacheinander.</p>
         </fieldset>
 
         <button type="submit" class="button-primary">Speichern</button>

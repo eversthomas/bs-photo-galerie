@@ -62,6 +62,7 @@ $galleryRuntimeJson = json_encode(
 </div>
 
 <dialog class="gallery-lightbox" id="gallery-lightbox" aria-labelledby="lb-title">
+    <div class="lb-fs-root" id="lb-fs-root">
     <div class="lb-backdrop" data-lb-close></div>
     <div class="lb-inner">
         <div class="lb-toolbar" id="lb-toolbar" role="toolbar" aria-label="Lightbox-Steuerung">
@@ -80,8 +81,6 @@ $galleryRuntimeJson = json_encode(
             </div>
         </div>
         <button type="button" class="lb-close" data-lb-close aria-label="Schließen">×</button>
-        <button type="button" class="lb-nav lb-prev" id="lb-prev" aria-label="Vorheriges Bild">‹</button>
-        <button type="button" class="lb-nav lb-next" id="lb-next" aria-label="Nächstes Bild">›</button>
         <figure class="lb-figure">
             <img class="lb-img" id="lb-img" src="" alt="">
             <figcaption class="lb-caption" id="lb-caption">
@@ -90,5 +89,8 @@ $galleryRuntimeJson = json_encode(
             </figcaption>
         </figure>
         <audio id="gallery-bg-audio" preload="metadata" playsinline class="lb-audio-hidden"></audio>
+    </div>
+    <button type="button" class="lb-nav lb-prev" id="lb-prev" aria-label="Vorheriges Bild">‹</button>
+    <button type="button" class="lb-nav lb-next" id="lb-next" aria-label="Nächstes Bild">›</button>
     </div>
 </dialog>
