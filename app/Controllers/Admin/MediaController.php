@@ -16,11 +16,13 @@ final class MediaController extends BaseController
     public function index(): void
     {
         $items = $this->app->mediaRepository()->listRecent(200, 0);
+        $categories = $this->app->categoryRepository()->listAllOrdered();
         $this->render(
             'admin/media/index',
             [
                 'title' => 'Medien',
                 'items' => $items,
+                'categories' => $categories,
                 'user' => $this->app->auth()->user(),
                 'flash' => Flash::pull() ?? [],
             ],
@@ -165,6 +167,51 @@ final class MediaController extends BaseController
 
         $this->app->mediaRepository()->reorderByOrderedIds($ids);
         Flash::set('success', 'Reihenfolge gespeichert.');
+        $this->app->redirect('/admin/media');
+    }
+
+    public function bulkCategory(): void
+    {
+        $rawIds = $this->app->request()->post('ids');
+        $ids = [];
+        if (is_array($rawIds)) {
+            foreach ($rawIds as $v) {
+                if (is_string($v) && ctype_digit($v)) {
+                    $ids[] = (int) $v;
+                } elseif (is_int($v) && $v > 0) {
+                    $ids[] = $v;
+                }
+            }
+        }
+
+        if ($ids === []) {
+            Flash::set('error', 'Bitte mindestens ein Bild auswählen.');
+            $this->app->redirect('/admin/media');
+
+            return;
+        }
+
+        $ids = array_slice(array_values(array_unique($ids)), 0, 200);
+
+        $categoryId = $this->resolveCategoryId($this->app->request()->post('bulk_category_id'));
+        $updated = $this->app->mediaRepository()->bulkAssignCategory($ids, $categoryId);
+        if ($updated < 1) {
+            Flash::set('error', 'Keine Einträge geändert.');
+        } elseif ($categoryId === null) {
+            Flash::set(
+                'success',
+                $updated === 1
+                    ? 'Ein Bild ist jetzt ohne Kategorie.'
+                    : $updated . ' Bilder sind jetzt ohne Kategorie.'
+            );
+        } else {
+            Flash::set(
+                'success',
+                $updated === 1
+                    ? 'Ein Bild wurde der Kategorie zugewiesen.'
+                    : $updated . ' Bilder wurden der Kategorie zugewiesen.'
+            );
+        }
         $this->app->redirect('/admin/media');
     }
 

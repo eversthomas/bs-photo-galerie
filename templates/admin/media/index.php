@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** @var \BSPhotoGalerie\Core\Application $app */
 /** @var string $csrfToken */
 /** @var list<\BSPhotoGalerie\Models\Media> $items */
+/** @var list<array{id:int,name:string,slug:string,sort_order:int}> $categories */
 
 $orderIds = array_map(static fn ($m) => (string) $m->id, $items);
 $orderCsv = implode(',', $orderIds);
@@ -17,7 +18,7 @@ $orderCsv = implode(',', $orderIds);
             <a class="button-primary admin-toolbar-action" href="<?= htmlspecialchars($app->url('/admin/media/upload'), ENT_QUOTES, 'UTF-8') ?>">Hochladen</a>
         </div>
     </div>
-    <p class="muted small">Karten per <strong>Ziehen</strong> sortieren, dann „Reihenfolge speichern“. Titel inline ändern und speichern – oder „Bearbeiten“ für Beschreibung und Sichtbarkeit.</p>
+    <p class="muted small">Karten per <strong>Ziehen</strong> sortieren (am ⠿-Griff), dann „Reihenfolge speichern“. Mehrere Bilder mit der <strong>Checkbox</strong> wählen und unten einer Kategorie zuordnen.</p>
 
     <?php if ($items === []) : ?>
         <p class="muted">Noch keine Bilder. <a href="<?= htmlspecialchars($app->url('/admin/media/upload'), ENT_QUOTES, 'UTF-8') ?>">Jetzt hochladen</a></p>
@@ -29,9 +30,32 @@ $orderCsv = implode(',', $orderIds);
             <span class="muted small reorder-hint" id="reorder-dirty" hidden>Geändert – bitte speichern.</span>
         </form>
 
+        <form method="post"
+              action="<?= htmlspecialchars($app->url('/admin/media/bulk-category'), ENT_QUOTES, 'UTF-8') ?>"
+              id="bulk-category-form"
+              class="media-bulk-bar">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+            <span class="media-bulk-label">Auswahl → Kategorie:</span>
+            <select name="bulk_category_id" class="media-bulk-select" aria-label="Zielkategorie">
+                <option value="">— ohne Kategorie —</option>
+                <?php foreach ($categories as $c) : ?>
+                    <option value="<?= (int) $c['id'] ?>"><?= htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="button-secondary">Zuweisen</button>
+        </form>
+
         <div class="media-grid media-grid-sortable" role="list" id="media-sortable" data-initial-order="<?= htmlspecialchars($orderCsv, ENT_QUOTES, 'UTF-8') ?>">
             <?php foreach ($items as $m) : ?>
                 <article class="media-card" role="listitem" draggable="true" data-media-id="<?= (int) $m->id ?>">
+                    <label class="media-select-wrap" title="Zur Mehrfachzuordnung">
+                        <input type="checkbox"
+                               form="bulk-category-form"
+                               name="ids[]"
+                               value="<?= (int) $m->id ?>"
+                               class="media-select-cb">
+                        <span class="sr-only">Bild <?= (int) $m->id ?> auswählen</span>
+                    </label>
                     <button type="button" class="media-drag-hint" aria-label="Verschieben" title="Ziehen zum Sortieren">⠿</button>
                     <?php if (! $m->isVisible) : ?>
                         <span class="media-badge-offline">Ausgeblendet</span>

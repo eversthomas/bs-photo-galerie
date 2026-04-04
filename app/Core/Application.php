@@ -354,6 +354,7 @@ final class Application
                 $r->addRoute('GET', '/media/upload', [MediaController::class, 'uploadForm']);
                 $r->addRoute('POST', '/media/upload', [MediaController::class, 'upload']);
                 $r->addRoute('POST', '/media/reorder', [MediaController::class, 'reorder']);
+                $r->addRoute('POST', '/media/bulk-category', [MediaController::class, 'bulkCategory']);
                 $r->addRoute('POST', '/media/inline-title', [MediaController::class, 'inlineTitle']);
                 $r->addRoute('GET', '/media/{id:\d+}/edit', [MediaController::class, 'edit']);
                 $r->addRoute('POST', '/media/{id:\d+}/update', [MediaController::class, 'update']);

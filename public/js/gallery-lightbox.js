@@ -29,6 +29,15 @@
     }
 
     var config = readConfig();
+    var deepLinkDiashow = false;
+    try {
+        deepLinkDiashow = new URLSearchParams(window.location.search).get('diashow') === '1';
+    } catch (e) {}
+
+    function slideshowAllowed() {
+        return (config.slideshowEnabled || deepLinkDiashow) && items.length > 1;
+    }
+
     var dialog = document.getElementById('gallery-lightbox');
     var grid = document.getElementById('gallery-grid');
     if (!dialog || !grid) {
@@ -135,7 +144,7 @@
 
     function startSlideshow() {
         stopSlideshow();
-        if (!config.slideshowEnabled || items.length < 2) {
+        if (!slideshowAllowed()) {
             return;
         }
         var ms = currentIntervalSec() * 1000;
@@ -149,7 +158,7 @@
     }
 
     function toggleSlideshow() {
-        if (!config.slideshowEnabled || items.length < 2) {
+        if (!slideshowAllowed()) {
             return;
         }
         if (slideshowTimer !== null) {
@@ -223,7 +232,7 @@
             groupMusic.hidden = !showMusic;
         }
         if (groupSlideshow && btnSlideshow && selInterval) {
-            var showSlideshow = config.slideshowEnabled && items.length > 1;
+            var showSlideshow = slideshowAllowed();
             groupSlideshow.hidden = !showSlideshow;
             selInterval.disabled = !showSlideshow;
             btnSlideshow.disabled = !showSlideshow;
@@ -400,4 +409,15 @@
         },
         { passive: true }
     );
+
+    if (deepLinkDiashow) {
+        collectItems();
+        if (items.length > 0) {
+            setupUiFromConfig();
+            openAt(0);
+            if (items.length > 1) {
+                startSlideshow();
+            }
+        }
+    }
 })();

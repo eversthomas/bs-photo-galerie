@@ -20,6 +20,7 @@ declare(strict_types=1);
                 <th>Name</th>
                 <th>Slug</th>
                 <th>Sortierung</th>
+                <th>Öffentlich</th>
                 <th></th>
             </tr>
             </thead>
@@ -29,6 +30,15 @@ declare(strict_types=1);
                     <td><?= htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="mono small"><?= htmlspecialchars($c['slug'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= (int) $c['sort_order'] ?></td>
+                    <td class="small nowrap">
+                        <?php
+                        $galUrl = $app->url('/galerie/kategorie/' . rawurlencode($c['slug']));
+                        $diaUrl = $galUrl . '?diashow=1';
+                        ?>
+                        <a href="<?= htmlspecialchars($galUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>
+                        ·
+                        <a href="<?= htmlspecialchars($diaUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Diashow</a>
+                    </td>
                     <td class="admin-table-actions">
                         <a href="<?= htmlspecialchars($app->url('/admin/categories/' . $c['id'] . '/edit'), ENT_QUOTES, 'UTF-8') ?>">Bearbeiten</a>
                         <form method="post" action="<?= htmlspecialchars($app->url('/admin/categories/' . $c['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline-delete-form" onsubmit="return confirm('Kategorie wirklich löschen?');">

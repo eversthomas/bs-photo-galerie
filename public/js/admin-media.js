@@ -35,6 +35,10 @@
     }
 
     grid.addEventListener('dragstart', function (e) {
+        if (e.target.closest('input, button, a, textarea, select, label')) {
+            e.preventDefault();
+            return;
+        }
         var card = e.target.closest('.media-card');
         if (!card) {
             return;

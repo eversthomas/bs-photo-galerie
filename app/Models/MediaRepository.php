@@ -209,6 +209,36 @@ final class MediaRepository
     }
 
     /**
+     * Mehrere Medien derselben Kategorie zuordnen (oder ohne Kategorie: null).
+     *
+     * @param list<int|string> $ids
+     */
+    public function bulkAssignCategory(array $ids, ?int $categoryId): int
+    {
+        $clean = [];
+        foreach ($ids as $id) {
+            $id = is_int($id) ? $id : (is_string($id) && ctype_digit($id) ? (int) $id : 0);
+            if ($id > 0) {
+                $clean[$id] = true;
+            }
+        }
+        $idList = array_map(static fn (int $i) => $i, array_keys($clean));
+        if ($idList === []) {
+            return 0;
+        }
+
+        sort($idList);
+        $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+        $placeholders = implode(', ', array_fill(0, count($idList), '?'));
+        $params = array_merge([$categoryId, $now], $idList);
+
+        return $this->database->execute(
+            "UPDATE media SET category_id = ?, updated_at = ? WHERE id IN ($placeholders)",
+            $params
+        );
+    }
+
+    /**
      * Für Abgleich: alle gespeicherten Pfade unter public/.
      *
      * @return list<array{id:int, storage_path:string}>
