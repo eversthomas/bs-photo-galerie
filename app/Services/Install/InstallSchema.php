@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS categories (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
     sort_order INT NOT NULL DEFAULT 0,
+    is_public TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     KEY idx_categories_parent (parent_id),
     UNIQUE KEY uq_categories_slug (slug)

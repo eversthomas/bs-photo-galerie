@@ -16,12 +16,7 @@ final class GitApplicationUpdater
 
     public static function isWebGitUpdateAllowed(): bool
     {
-        $raw = $_ENV['BSPHOTO_ALLOW_GIT_UPDATE'] ?? getenv('BSPHOTO_ALLOW_GIT_UPDATE');
-        if ($raw === false || $raw === null) {
-            return false;
-        }
-
-        return in_array(strtolower(trim((string) $raw)), ['1', 'true', 'yes', 'on'], true);
+        return WebUpdatePolicy::isWebUpdateAllowed();
     }
 
     public function isGitWorkingCopy(): bool

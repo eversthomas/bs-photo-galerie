@@ -24,6 +24,12 @@ final class ThumbController
             return;
         }
 
+        if (! $this->app->auth()->check() && ! $this->app->mediaRepository()->isPublicGuestAccessible($mediaId)) {
+            http_response_code(404);
+
+            return;
+        }
+
         $path = $this->app->root() . '/storage/thumbnails/' . $mediaId . '.jpg';
         if (! is_file($path) || ! is_readable($path)) {
             http_response_code(404);

@@ -7,6 +7,7 @@ namespace BSPhotoGalerie\Controllers\Admin;
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\CsrfToken;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\LoginRedirect;
 
 /**
  * Admin-Anmeldung.
@@ -15,7 +16,16 @@ final class LoginController extends BaseController
 {
     public function showForm(): void
     {
-        $this->render('admin/login', ['flash' => Flash::pull() ?? [], 'title' => 'Anmeldung'], 'admin/layout');
+        $redirect = LoginRedirect::sanitize($this->app->request()->query('redirect'));
+        $this->render(
+            'admin/login',
+            [
+                'flash' => Flash::pull() ?? [],
+                'title' => 'Anmeldung',
+                'redirectAfterLogin' => $redirect,
+            ],
+            'admin/layout'
+        );
     }
 
     public function login(): void
@@ -34,6 +44,12 @@ final class LoginController extends BaseController
 
         if ($this->app->auth()->attempt($username, $password)) {
             CsrfToken::rotate();
+            $next = LoginRedirect::sanitize(trim((string) $this->app->request()->post('redirect', '')));
+            if ($next !== null) {
+                $this->app->redirect($next);
+
+                return;
+            }
             $this->app->redirect('/admin');
         }
 

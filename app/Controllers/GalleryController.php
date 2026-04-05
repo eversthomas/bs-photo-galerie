@@ -65,10 +65,13 @@ final class GalleryController extends BaseController
 
     public function index(): void
     {
-        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, null);
+        $guest = ! $this->app->auth()->check();
+        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, null, $guest);
         $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
         $description = $this->app->settingsRepository()->get('site_description', '');
-        $categories = $this->app->categoryRepository()->listAllOrdered();
+        $categories = $guest
+            ? $this->app->categoryRepository()->listPublicOrdered()
+            : $this->app->categoryRepository()->listAllOrdered();
 
         $this->render(
             'gallery/index',
@@ -93,9 +96,21 @@ final class GalleryController extends BaseController
             $this->app->abort(404, 'Kategorie nicht gefunden.');
         }
 
-        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, $cat['id']);
+        $guest = ! $this->app->auth()->check();
+        if ($guest && ! $cat['is_public']) {
+            $path = $this->app->request()->path();
+            $this->app->redirect('/admin/login?redirect=' . rawurlencode($path));
+
+            return;
+        }
+
+        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, $cat['id'], $guest);
         $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
         $description = $this->app->settingsRepository()->get('site_description', '');
+
+        $categories = $guest
+            ? $this->app->categoryRepository()->listPublicOrdered()
+            : $this->app->categoryRepository()->listAllOrdered();
 
         $this->render(
             'gallery/index',
@@ -104,7 +119,7 @@ final class GalleryController extends BaseController
                 'siteTitle' => $siteTitle,
                 'siteDescription' => $description,
                 'items' => $items,
-                'categories' => $this->app->categoryRepository()->listAllOrdered(),
+                'categories' => $categories,
                 'currentCategory' => $cat,
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),

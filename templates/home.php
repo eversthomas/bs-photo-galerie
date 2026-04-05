@@ -6,7 +6,7 @@ declare(strict_types=1);
 /** @var string $siteTitle */
 /** @var string $siteDescription */
 /** @var list<\BSPhotoGalerie\Models\Media> $previewItems */
-/** @var list<array{id:int,name:string,slug:string,sort_order:int}> $categories */
+/** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $categories */
 ?>
 <section class="home-hero">
     <h1><?= htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8') ?></h1>

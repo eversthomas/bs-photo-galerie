@@ -25,6 +25,7 @@ use BSPhotoGalerie\Models\SettingsRepository;
 use BSPhotoGalerie\Models\UserRepository;
 use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Database;
+use BSPhotoGalerie\Services\SchemaPatches;
 use BSPhotoGalerie\Services\Import\MediaImportService;
 use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
@@ -97,6 +98,7 @@ final class Application
             /** @var array{host:string,port?:int,name:string,user:string,password:string,charset?:string} $db */
             $db = $this->config['db'];
             $this->database = Database::connect($db);
+            SchemaPatches::ensure($this->database);
         }
 
         return $this->database;

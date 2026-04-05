@@ -17,6 +17,32 @@ final class MediaRepository
     ) {
     }
 
+    /**
+     * Darf ein Medium in der öffentlichen Ansicht (ohne Login) in Galerie/Vorschaubild gezeigt werden?
+     */
+    public function isPublicGuestAccessible(int $mediaId): bool
+    {
+        if ($mediaId < 1) {
+            return false;
+        }
+        $row = $this->database->fetchOne(
+            'SELECT m.is_visible, m.category_id, c.is_public AS cat_is_public
+             FROM media m
+             LEFT JOIN categories c ON c.id = m.category_id
+             WHERE m.id = ? LIMIT 1',
+            [$mediaId]
+        );
+        if ($row === null || (int) ($row['is_visible'] ?? 0) !== 1) {
+            return false;
+        }
+        $cid = $row['category_id'] ?? null;
+        if ($cid === null || $cid === '') {
+            return true;
+        }
+
+        return (int) ($row['cat_is_public'] ?? 1) === 1;
+    }
+
     public function findIdByHash(string $hash): ?int
     {
         if ($hash === '' || strlen($hash) !== 64) {
@@ -95,25 +121,52 @@ final class MediaRepository
     /**
      * Nur für die öffentliche Galerie: sichtbare Bilder, sortiert wie im Backend.
      *
+     * @param bool $enforceCategoryPublicity Wenn true (Gast): Medien in privaten Kategorien ausblenden bzw. nur öffentliche Kategorien.
+     *
      * @return list<Media>
      */
-    public function listPublicVisible(int $limit = 300, int $offset = 0, ?int $categoryId = null): array
+    public function listPublicVisible(int $limit = 300, int $offset = 0, ?int $categoryId = null, bool $enforceCategoryPublicity = true): array
     {
         $limit = max(1, min($limit, 500));
         $offset = max(0, $offset);
 
-        if ($categoryId === null) {
+        if (! $enforceCategoryPublicity) {
+            if ($categoryId === null) {
+                $rows = $this->database->fetchAll(
+                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+                     FROM media WHERE is_visible = 1
+                     ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                    [$limit, $offset]
+                );
+            } else {
+                $rows = $this->database->fetchAll(
+                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+                     FROM media WHERE is_visible = 1 AND category_id = ?
+                     ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                    [$categoryId, $limit, $offset]
+                );
+            }
+        } elseif ($categoryId === null) {
             $rows = $this->database->fetchAll(
-                'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
-                 FROM media WHERE is_visible = 1
-                 ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
+                 FROM media m
+                 WHERE m.is_visible = 1
+                 AND (
+                     m.category_id IS NULL
+                     OR EXISTS (
+                         SELECT 1 FROM categories c WHERE c.id = m.category_id AND c.is_public = 1
+                     )
+                 )
+                 ORDER BY m.sort_order DESC, m.id DESC LIMIT ? OFFSET ?',
                 [$limit, $offset]
             );
         } else {
             $rows = $this->database->fetchAll(
-                'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
-                 FROM media WHERE is_visible = 1 AND category_id = ?
-                 ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
+                 FROM media m
+                 INNER JOIN categories c ON c.id = m.category_id AND c.is_public = 1
+                 WHERE m.is_visible = 1 AND m.category_id = ?
+                 ORDER BY m.sort_order DESC, m.id DESC LIMIT ? OFFSET ?',
                 [$categoryId, $limit, $offset]
             );
         }

@@ -18,12 +18,12 @@ final class CategoryRepository
     }
 
     /**
-     * @return list<array{id:int,name:string,slug:string,sort_order:int}>
+     * @return list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}>
      */
     public function listAllOrdered(): array
     {
         $rows = $this->database->fetchAll(
-            'SELECT id, name, slug, sort_order FROM categories ORDER BY sort_order ASC, name ASC'
+            'SELECT id, name, slug, sort_order, is_public FROM categories ORDER BY sort_order ASC, name ASC'
         );
         $out = [];
         foreach ($rows as $row) {
@@ -32,6 +32,7 @@ final class CategoryRepository
                 'name' => (string) ($row['name'] ?? ''),
                 'slug' => (string) ($row['slug'] ?? ''),
                 'sort_order' => (int) ($row['sort_order'] ?? 0),
+                'is_public' => self::rowIsPublic($row),
             ];
         }
 
@@ -39,7 +40,19 @@ final class CategoryRepository
     }
 
     /**
-     * @return array{id:int,name:string,slug:string,sort_order:int}|null
+     * Nur für die öffentliche Navigation (Ohne Login sichtbare Kategorien).
+     *
+     * @return list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}>
+     */
+    public function listPublicOrdered(): array
+    {
+        $all = $this->listAllOrdered();
+
+        return array_values(array_filter($all, static fn (array $c): bool => $c['is_public']));
+    }
+
+    /**
+     * @return array{id:int,name:string,slug:string,sort_order:int,is_public:bool}|null
      */
     public function findBySlug(string $slug): ?array
     {
@@ -48,7 +61,7 @@ final class CategoryRepository
             return null;
         }
         $row = $this->database->fetchOne(
-            'SELECT id, name, slug, sort_order FROM categories WHERE slug = ? LIMIT 1',
+            'SELECT id, name, slug, sort_order, is_public FROM categories WHERE slug = ? LIMIT 1',
             [$slug]
         );
         if ($row === null) {
@@ -60,16 +73,17 @@ final class CategoryRepository
             'name' => (string) ($row['name'] ?? ''),
             'slug' => (string) ($row['slug'] ?? ''),
             'sort_order' => (int) ($row['sort_order'] ?? 0),
+            'is_public' => self::rowIsPublic($row),
         ];
     }
 
     /**
-     * @return array{id:int,name:string,slug:string,sort_order:int}|null
+     * @return array{id:int,name:string,slug:string,sort_order:int,is_public:bool}|null
      */
     public function findById(int $id): ?array
     {
         $row = $this->database->fetchOne(
-            'SELECT id, name, slug, sort_order FROM categories WHERE id = ? LIMIT 1',
+            'SELECT id, name, slug, sort_order, is_public FROM categories WHERE id = ? LIMIT 1',
             [$id]
         );
         if ($row === null) {
@@ -81,6 +95,7 @@ final class CategoryRepository
             'name' => (string) ($row['name'] ?? ''),
             'slug' => (string) ($row['slug'] ?? ''),
             'sort_order' => (int) ($row['sort_order'] ?? 0),
+            'is_public' => self::rowIsPublic($row),
         ];
     }
 
@@ -108,25 +123,33 @@ final class CategoryRepository
         return (int) ($row['n'] ?? 1);
     }
 
-    public function insert(string $name, string $slug): int
+    public function insert(string $name, string $slug, bool $isPublic = true): int
     {
         $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
         $sort = $this->nextSortOrder();
 
         $this->database->execute(
-            'INSERT INTO categories (parent_id, name, slug, sort_order, created_at) VALUES (NULL,?,?,?,?)',
-            [$name, $slug, $sort, $now]
+            'INSERT INTO categories (parent_id, name, slug, sort_order, is_public, created_at) VALUES (NULL,?,?,?,?,?)',
+            [$name, $slug, $sort, $isPublic ? 1 : 0, $now]
         );
 
         return $this->database->lastInsertId();
     }
 
-    public function update(int $id, string $name, string $slug): void
+    public function update(int $id, string $name, string $slug, bool $isPublic): void
     {
         $this->database->execute(
-            'UPDATE categories SET name = ?, slug = ? WHERE id = ?',
-            [$name, $slug, $id]
+            'UPDATE categories SET name = ?, slug = ?, is_public = ? WHERE id = ?',
+            [$name, $slug, $isPublic ? 1 : 0, $id]
         );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private static function rowIsPublic(array $row): bool
+    {
+        return ! isset($row['is_public']) || (int) ($row['is_public'] ?? 1) === 1;
     }
 
     public function delete(int $id): void

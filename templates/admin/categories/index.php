@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /** @var \BSPhotoGalerie\Core\Application $app */
 /** @var string $csrfToken */
-/** @var list<array{id:int,name:string,slug:string,sort_order:int}> $items */
+/** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $items */
 ?>
 <section class="admin-panel">
     <div class="admin-toolbar">
@@ -20,7 +20,8 @@ declare(strict_types=1);
                 <th>Name</th>
                 <th>Slug</th>
                 <th>Sortierung</th>
-                <th>Öffentlich</th>
+                <th>Sichtbarkeit</th>
+                <th>Links</th>
                 <th></th>
             </tr>
             </thead>
@@ -30,6 +31,7 @@ declare(strict_types=1);
                     <td><?= htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="mono small"><?= htmlspecialchars($c['slug'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= (int) $c['sort_order'] ?></td>
+                    <td class="small"><?= ! empty($c['is_public']) ? '<strong>öffentlich</strong>' : '<span class="muted">privat</span>' ?></td>
                     <td class="small nowrap">
                         <?php
                         $galUrl = $app->publicUrl('/galerie/kategorie/' . rawurlencode($c['slug']));

@@ -53,8 +53,9 @@ final class CategoryController extends BaseController
         $slugInput = trim((string) $this->app->request()->post('slug', ''));
         $base = $slugInput !== '' ? $slugInput : $name;
         $slug = $this->uniqueSlug(SlugGenerator::slugify($base), null);
+        $isPublic = $this->app->request()->post('is_public', '') === '1';
 
-        $id = $this->app->categoryRepository()->insert(mb_substr($name, 0, 255), $slug);
+        $id = $this->app->categoryRepository()->insert(mb_substr($name, 0, 255), $slug, $isPublic);
         if ($id < 1) {
             Flash::set('error', 'Speichern fehlgeschlagen.');
             $this->app->redirect('/admin/categories/create');
@@ -103,8 +104,9 @@ final class CategoryController extends BaseController
         $slugInput = trim((string) $this->app->request()->post('slug', ''));
         $base = $slugInput !== '' ? $slugInput : $name;
         $slug = $this->uniqueSlug(SlugGenerator::slugify($base), $cid);
+        $isPublic = $this->app->request()->post('is_public', '') === '1';
 
-        $this->app->categoryRepository()->update($cid, mb_substr($name, 0, 255), $slug);
+        $this->app->categoryRepository()->update($cid, mb_substr($name, 0, 255), $slug, $isPublic);
         Flash::set('success', 'Kategorie gespeichert.');
         $this->app->redirect('/admin/categories');
     }

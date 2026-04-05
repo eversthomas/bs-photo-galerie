@@ -6,8 +6,8 @@ declare(strict_types=1);
 /** @var string $siteTitle */
 /** @var string $siteDescription */
 /** @var list<\BSPhotoGalerie\Models\Media> $items */
-/** @var list<array{id:int,name:string,slug:string,sort_order:int}> $categories */
-/** @var array{id:int,name:string,slug:string,sort_order:int}|null $currentCategory */
+/** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $categories */
+/** @var array{id:int,name:string,slug:string,sort_order:int,is_public:bool}|null $currentCategory */
 /** @var array{slideshowEnabled: bool, slideshowInterval: int, musicEnabled: bool, musicUrls: list<string>} $galleryRuntimeConfig */
 
 $isFiltered = $currentCategory !== null;

@@ -9,9 +9,11 @@ use BSPhotoGalerie\Core\Flash;
 use BSPhotoGalerie\Services\Update\AppVersion;
 use BSPhotoGalerie\Services\Update\GithubReleaseClient;
 use BSPhotoGalerie\Services\Update\GitApplicationUpdater;
+use BSPhotoGalerie\Services\Update\WebUpdatePolicy;
+use BSPhotoGalerie\Services\Update\ZipReleaseUpdater;
 
 /**
- * GitHub-Versionscheck und optionales Git-Update (nur mit BSPHOTO_ALLOW_GIT_UPDATE=1).
+ * GitHub-Versionscheck: Update per Git (mit .git) oder per GitHub-ZIP (ohne .git).
  */
 final class UpdateController extends BaseController
 {
@@ -31,7 +33,9 @@ final class UpdateController extends BaseController
             $newer = AppVersion::isNewerThan($remote['tag'], $local);
         }
 
-        $updater = new GitApplicationUpdater($root);
+        $git = new GitApplicationUpdater($root);
+        $zip = new ZipReleaseUpdater($root);
+        $webOk = WebUpdatePolicy::isWebUpdateAllowed();
         $this->render(
             'admin/update/index',
             [
@@ -44,9 +48,12 @@ final class UpdateController extends BaseController
                 'remoteDiagnostic' => $check['diagnostic'],
                 'updateAvailable' => $newer,
                 'repoUrl' => self::REPO_URL,
-                'gitAllowed' => GitApplicationUpdater::isWebGitUpdateAllowed(),
-                'hasGitDir' => $updater->isGitWorkingCopy(),
-                'canShell' => $updater->canRunShell(),
+                'webUpdateAllowed' => $webOk,
+                'hasZipExtension' => ZipReleaseUpdater::hasZipExtension(),
+                'gitAllowed' => $webOk,
+                'hasGitDir' => $git->isGitWorkingCopy(),
+                'canShell' => $git->canRunShell(),
+                'canZipUpdate' => $webOk && ZipReleaseUpdater::hasZipExtension() && $zip->canRunShell(),
             ],
             'admin/layout'
         );
@@ -72,6 +79,29 @@ final class UpdateController extends BaseController
             return;
         }
 
+        if (! WebUpdatePolicy::isWebUpdateAllowed()) {
+            Flash::set('error', 'Web-Updates sind nicht freigeschaltet. In config/.env z. B. BSPHOTO_ALLOW_WEB_UPDATE=1 setzen.');
+            $this->app->redirect('/admin/update');
+
+            return;
+        }
+
+        $channel = strtolower(trim((string) $this->app->request()->post('channel', '')));
+        if ($channel !== 'git' && $channel !== 'zip') {
+            Flash::set('error', 'Ungültiger Update-Typ.');
+            $this->app->redirect('/admin/update');
+
+            return;
+        }
+
+        $git = new GitApplicationUpdater($root);
+        if ($channel === 'git' && ! $git->isGitWorkingCopy()) {
+            Flash::set('error', 'Git-Update erfordert ein Arbeitsverzeichnis mit .git. Nutzen Sie stattdessen das ZIP-Update.');
+            $this->app->redirect('/admin/update');
+
+            return;
+        }
+
         $targetTag = trim((string) $this->app->request()->post('target_tag', ''));
         $postedMode = strtolower(trim((string) $this->app->request()->post('git_mode', 'tag')));
         $postedRef = trim((string) $this->app->request()->post('git_ref', ''));
@@ -90,8 +120,7 @@ final class UpdateController extends BaseController
         }
 
         (new GithubReleaseClient($root))->clearCache();
-        $client = new GithubReleaseClient($root);
-        $check = $client->fetchLatestCached();
+        $check = (new GithubReleaseClient($root))->fetchLatestCached();
         $remote = $check['remote'];
         if (
             $remote === null
@@ -112,16 +141,33 @@ final class UpdateController extends BaseController
             return;
         }
 
-        $updater = new GitApplicationUpdater($root);
-        $result = $updater->run($remote['git_ref'], $remote['git_mode']);
+        if ($channel === 'zip') {
+            if ($remote['zipball_url'] === '') {
+                Flash::set('error', 'Keine ZIP-URL von GitHub — Update derzeit nicht möglich.');
+                $this->app->redirect('/admin/update');
+
+                return;
+            }
+            $zipUpdater = new ZipReleaseUpdater($root);
+            if (! ZipReleaseUpdater::hasZipExtension() || ! $zipUpdater->canRunShell()) {
+                Flash::set('error', 'ZIP-Update nicht möglich (PHP zip oder proc_open fehlt).');
+                $this->app->redirect('/admin/update');
+
+                return;
+            }
+            $result = $zipUpdater->run($remote['zipball_url']);
+        } else {
+            $result = $git->run($remote['git_ref'], $remote['git_mode']);
+        }
+
         if ($result['ok']) {
             $newLocal = AppVersion::readFromProjectRoot($root);
             Flash::set(
                 'success',
-                'Update ausgeführt. Datei VERSION zeigt nun: ' . $newLocal . '. Bei Problemen siehe untenstehendes Protokoll in den Server-Logs bzw. führen Sie composer install manuell aus.'
+                'Update ausgeführt. Datei VERSION zeigt nun: ' . $newLocal . '. Bei Problemen prüfen Sie die Server-Logs oder führen Sie composer install manuell aus.'
             );
         } else {
-            Flash::set('error', 'Update fehlgeschlagen: ' . implode('; ', array_slice($result['log'], 0, 10)));
+            Flash::set('error', 'Update fehlgeschlagen: ' . implode('; ', array_slice($result['log'], 0, 12)));
         }
 
         $this->app->redirect('/admin/update');
