@@ -164,6 +164,8 @@ final class UpdateController extends BaseController
             $msg = 'Update ausgeführt. Datei VERSION: ' . $newLocal . '.';
             if ($channel === 'zip') {
                 $msg .= ' Ohne Composer auf dem Server bleibt der Ordner vendor/ unverändert (normal für viele Releases). Wenn composer.json/composer.lock neue Pakete verlangen, lokal composer install ausführen und vendor/ hochladen.';
+            } elseif (isset($result['composer_ok']) && $result['composer_ok'] === false) {
+                $msg .= ' Der Git-Stand wurde aktualisiert; composer install ist fehlgeschlagen oder war nicht verfügbar — bitte vendor/ ggf. lokal erzeugen und hochladen.';
             } else {
                 $msg .= ' Bei Problemen prüfen Sie die Server-Logs.';
             }

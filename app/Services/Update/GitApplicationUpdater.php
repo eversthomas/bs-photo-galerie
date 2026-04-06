@@ -45,13 +45,19 @@ final class GitApplicationUpdater
     /**
      * @param 'tag'|'branch' $mode Tag: auschecken. Branch: fetch und harter Reset auf den Remote-Branch.
      *
-     * @return array{ok: bool, log: list<string>}
+     * @return array{ok: bool, log: list<string>, composer_ok?: bool}
+     *   `composer_ok` ist nur gesetzt, wenn Git erfolgreich war; bei `false` wurde der Code aktualisiert, aber `composer install` ist fehlgeschlagen bzw. nicht ausführbar.
      */
     public function run(string $refName, string $mode = 'tag'): array
     {
         $log = [];
         if (! self::isWebGitUpdateAllowed()) {
-            return ['ok' => false, 'log' => ['Web-Git-Updates sind nicht aktiviert (Umgebungsvariable BSPHOTO_ALLOW_GIT_UPDATE).']];
+            return [
+                'ok' => false,
+                'log' => [
+                    'Web-Updates aus der Verwaltung sind nicht freigeschaltet. In config/.env z. B. BSPHOTO_ALLOW_WEB_UPDATE=1 setzen (oder BSPHOTO_ALLOW_GIT_UPDATE=1 / BSPHOTO_ALLOW_ZIP_UPDATE=1).',
+                ],
+            ];
         }
         if (! $this->isGitWorkingCopy()) {
             return ['ok' => false, 'log' => ['Kein Git-Arbeitsverzeichnis (.git fehlt). Deployment war vermutlich per ZIP/FTP.']];
@@ -127,8 +133,11 @@ final class GitApplicationUpdater
 
         $composer = $this->runComposerInstall($root);
         $log = array_merge($log, $composer['lines']);
-        if (! $composer['ok']) {
-            return ['ok' => false, 'log' => $log];
+        $composerOk = $composer['ok'];
+        if (! $composerOk) {
+            $log[] = 'Hinweis: composer install fehlgeschlagen oder composer nicht gefunden — vendor/ wurde nicht aktualisiert. Git-Stand ist dennoch umgestellt. Bei neuen Abhängigkeiten lokal „composer install“ ausführen und vendor/ auf den Server legen.';
+        } else {
+            $log[] = 'composer install ausgeführt.';
         }
 
         if (function_exists('opcache_reset')) {
@@ -141,7 +150,7 @@ final class GitApplicationUpdater
             $log[] = 'Hinweis: Datei VERSION im Projektroot ggf. manuell an Release anpassen (oder aus Repository übernehmen).';
         }
 
-        return ['ok' => true, 'log' => $log];
+        return ['ok' => true, 'log' => $log, 'composer_ok' => $composerOk];
     }
 
     /**
