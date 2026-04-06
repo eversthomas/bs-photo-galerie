@@ -6,6 +6,8 @@ namespace BSPhotoGalerie\Controllers\Admin;
 
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Update\AppVersion;
 use BSPhotoGalerie\Services\Update\GithubReleaseClient;
 use BSPhotoGalerie\Services\Update\GitApplicationUpdater;
@@ -19,9 +21,16 @@ final class UpdateController extends BaseController
 {
     private const REPO_URL = 'https://github.com/eversthomas/bs-photo-galerie';
 
+    public function __construct(
+        HttpContext $http,
+        private AuthService $auth
+    ) {
+        parent::__construct($http);
+    }
+
     public function index(): void
     {
-        $root = $this->app->root();
+        $root = $this->http->root();
         $local = AppVersion::readFromProjectRoot($root);
 
         $client = new GithubReleaseClient($root);
@@ -40,7 +49,7 @@ final class UpdateController extends BaseController
             'admin/update/index',
             [
                 'title' => 'Software-Update',
-                'user' => $this->app->auth()->user(),
+                'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
                 'localVersion' => $local,
                 'remote' => $remote,
@@ -61,35 +70,35 @@ final class UpdateController extends BaseController
 
     public function refreshCache(): void
     {
-        $root = $this->app->root();
+        $root = $this->http->root();
         (new GithubReleaseClient($root))->clearCache();
         Flash::set('success', 'Update-Cache wurde geleert. Der GitHub-Stand wird beim nächsten Aufruf neu geladen.');
-        $this->app->redirect('/admin/update');
+        $this->http->redirect('/admin/update');
     }
 
     public function apply(): void
     {
-        $root = $this->app->root();
+        $root = $this->http->root();
         $local = AppVersion::readFromProjectRoot($root);
 
-        if ($this->app->request()->post('confirm') !== '1') {
+        if ($this->http->request()->post('confirm') !== '1') {
             Flash::set('error', 'Bitte die Bestätigung aktivieren.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
 
         if (! WebUpdatePolicy::isWebUpdateAllowed()) {
             Flash::set('error', 'Web-Updates sind nicht freigeschaltet. In config/.env z. B. BSPHOTO_ALLOW_WEB_UPDATE=1 setzen.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
 
-        $channel = strtolower(trim((string) $this->app->request()->post('channel', '')));
+        $channel = strtolower(trim((string) $this->http->request()->post('channel', '')));
         if ($channel !== 'git' && $channel !== 'zip') {
             Flash::set('error', 'Ungültiger Update-Typ.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
@@ -97,14 +106,14 @@ final class UpdateController extends BaseController
         $git = new GitApplicationUpdater($root);
         if ($channel === 'git' && ! $git->isGitWorkingCopy()) {
             Flash::set('error', 'Git-Update erfordert ein Arbeitsverzeichnis mit .git. Nutzen Sie stattdessen das ZIP-Update.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
 
-        $targetTag = trim((string) $this->app->request()->post('target_tag', ''));
-        $postedMode = strtolower(trim((string) $this->app->request()->post('git_mode', 'tag')));
-        $postedRef = trim((string) $this->app->request()->post('git_ref', ''));
+        $targetTag = trim((string) $this->http->request()->post('target_tag', ''));
+        $postedMode = strtolower(trim((string) $this->http->request()->post('git_mode', 'tag')));
+        $postedRef = trim((string) $this->http->request()->post('git_ref', ''));
         if ($postedMode !== 'tag' && $postedMode !== 'branch') {
             $postedMode = 'tag';
         }
@@ -114,7 +123,7 @@ final class UpdateController extends BaseController
 
         if ($targetTag === '') {
             Flash::set('error', 'Kein Ziel-Release übermittelt.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
@@ -129,14 +138,14 @@ final class UpdateController extends BaseController
             || $remote['git_ref'] !== $postedRef
         ) {
             Flash::set('error', 'Release-Informationen konnten nicht verifiziert werden. Bitte Seite neu laden und erneut versuchen.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
 
         if (! AppVersion::isNewerThan($remote['tag'], $local)) {
             Flash::set('error', 'Es liegt bereits eine gleiche oder neuere Version vor.');
-            $this->app->redirect('/admin/update');
+            $this->http->redirect('/admin/update');
 
             return;
         }
@@ -144,13 +153,13 @@ final class UpdateController extends BaseController
         if ($channel === 'zip') {
             if ($remote['zipball_url'] === '') {
                 Flash::set('error', 'Keine ZIP-URL von GitHub — Update derzeit nicht möglich.');
-                $this->app->redirect('/admin/update');
+                $this->http->redirect('/admin/update');
 
                 return;
             }
             if (! ZipReleaseUpdater::hasZipExtension()) {
                 Flash::set('error', 'ZIP-Update nicht möglich: PHP-Erweiterung zip (ZipArchive) fehlt.');
-                $this->app->redirect('/admin/update');
+                $this->http->redirect('/admin/update');
 
                 return;
             }
@@ -174,6 +183,6 @@ final class UpdateController extends BaseController
             Flash::set('error', 'Update fehlgeschlagen: ' . implode('; ', array_slice($result['log'], 0, 12)));
         }
 
-        $this->app->redirect('/admin/update');
+        $this->http->redirect('/admin/update');
     }
 }

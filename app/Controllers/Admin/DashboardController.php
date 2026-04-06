@@ -7,15 +7,24 @@ namespace BSPhotoGalerie\Controllers\Admin;
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\CsrfToken;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Geschützter Admin-Bereich (Dashboard-Stub).
  */
 final class DashboardController extends BaseController
 {
+    public function __construct(
+        HttpContext $http,
+        private AuthService $auth
+    ) {
+        parent::__construct($http);
+    }
+
     public function index(): void
     {
-        $user = $this->app->auth()->user();
+        $user = $this->auth->user();
         $title = 'Dashboard';
         $this->render(
             'admin/dashboard',
@@ -30,9 +39,9 @@ final class DashboardController extends BaseController
 
     public function logout(): void
     {
-        $this->app->auth()->logout();
+        $this->auth->logout();
         CsrfToken::rotate();
         Flash::set('success', 'Sie wurden abgemeldet.');
-        $this->app->redirect('/admin/login');
+        $this->http->redirect('/admin/login');
     }
 }

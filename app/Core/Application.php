@@ -139,67 +139,26 @@ final class Application
         return $this->container->mediaAdminService();
     }
 
-    /**
-     * Öffentliche URL inkl. Basis-Pfad unterhalb von public/.
-     */
-    public function url(string $path): string
-    {
-        $script = $this->request->server('SCRIPT_NAME') ?? '/index.php';
-        $script = str_replace('\\', '/', (string) $script);
-        $base = rtrim(dirname($script), '/');
-
-        if ($base === '' || $base === '.') {
-            $prefix = '';
-        } else {
-            $prefix = $base;
-        }
-
-        $path = '/' . ltrim($path, '/');
-        if ($path === '//') {
-            $path = '/';
-        }
-
-        return $prefix . $path;
-    }
-
-    /**
-     * Öffentliche URL mit optional gesetzter Hauptdomain (Einstellung public_base_url), sonst wie url().
-     */
-    public function publicUrl(string $path): string
-    {
-        $raw = trim($this->settingsRepository()->get('public_base_url', ''));
-        if ($raw === '') {
-            return $this->url($path);
-        }
-        $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
-        if ($path === '//') {
-            $path = '/';
-        }
-
-        return rtrim($raw, '/') . $path;
-    }
-
-    public function redirect(string $path, int $status = 302): void
-    {
-        header('Location: ' . $this->url($path), true, $status);
-        exit;
-    }
-
     public function run(): void
     {
         SecurityHeaders::sendForApp();
         $this->ensureSession();
+        $http = new HttpContext(
+            $this->request,
+            $this->projectRoot,
+            $this->container->settingsRepository()
+        );
         $dispatcher = $this->router();
         $routeInfo = $dispatcher->dispatch($this->request->method(), $this->request->path());
 
         if ($routeInfo[0] === Dispatcher::NOT_FOUND) {
-            $this->abort(404, 'Seite nicht gefunden.');
+            $http->abort(404, 'Seite nicht gefunden.');
 
             return;
         }
 
         if ($routeInfo[0] === Dispatcher::METHOD_NOT_ALLOWED) {
-            $this->abort(405, 'Methode nicht erlaubt.');
+            $http->abort(405, 'Methode nicht erlaubt.');
 
             return;
         }
@@ -210,22 +169,22 @@ final class Application
         $vars = $routeInfo[2];
 
         if ($this->request->isPost()) {
-            (new CsrfMiddleware($this))->validatePost();
+            (new CsrfMiddleware($http))->validatePost();
         }
 
-        $this->applyAuthPolicy($route);
+        $this->applyAuthPolicy($route, $http);
 
-        $this->invoke($handler, $vars);
+        $this->invoke($handler, $vars, $http);
     }
 
     /**
      * @param array{0:class-string,1:string} $handler
      * @param array<string, string> $vars
      */
-    private function invoke(array $handler, array $vars): void
+    private function invoke(array $handler, array $vars, HttpContext $http): void
     {
         [$class, $method] = $handler;
-        $controller = new $class($this);
+        $controller = $this->container->make($http, $class);
         if (! method_exists($controller, $method)) {
             throw new RuntimeException('Ungültige Route: Methode fehlt.');
         }
@@ -236,41 +195,22 @@ final class Application
     /**
      * @param array{handler: array{0:class-string,1:string}, auth: string} $route
      */
-    private function applyAuthPolicy(array $route): void
+    private function applyAuthPolicy(array $route, HttpContext $http): void
     {
         $auth = $route['auth'];
         [$class] = $route['handler'];
 
         if ($auth === 'login') {
             if ($class === LoginController::class && $this->auth()->check() && $this->request->path() === '/admin/login') {
-                $this->redirect('/admin');
+                $http->redirect('/admin');
             }
 
             return;
         }
 
         if ($auth === 'admin') {
-            (new AuthMiddleware($this))->requireUser();
+            (new AuthMiddleware($this->container->auth(), $http))->requireUser();
         }
-    }
-
-    public function abort(int $code, string $message): void
-    {
-        http_response_code($code);
-        header('Content-Type: text/html; charset=utf-8');
-
-        if ($code === 404) {
-            $file = $this->projectRoot . '/templates/errors/404.php';
-            if (is_file($file)) {
-                require $file;
-                exit;
-            }
-        }
-
-        echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Fehler</title></head><body>';
-        echo '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
-        echo '</body></html>';
-        exit;
     }
 
     private function ensureSession(): void

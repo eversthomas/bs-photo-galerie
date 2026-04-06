@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-/** @var \BSPhotoGalerie\Core\Application $app */
+/** @var \BSPhotoGalerie\Core\HttpContext $app */
 /** @var string $csrfToken */
 /** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $items */
 ?>

@@ -7,16 +7,25 @@ namespace BSPhotoGalerie\Controllers\Admin;
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\CsrfToken;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\HttpContext;
 use BSPhotoGalerie\Core\LoginRedirect;
+use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Admin-Anmeldung.
  */
 final class LoginController extends BaseController
 {
+    public function __construct(
+        HttpContext $http,
+        private AuthService $auth
+    ) {
+        parent::__construct($http);
+    }
+
     public function showForm(): void
     {
-        $redirect = LoginRedirect::sanitize($this->app->request()->query('redirect'));
+        $redirect = LoginRedirect::sanitize($this->http->request()->query('redirect'));
         $this->render(
             'admin/login',
             [
@@ -30,30 +39,30 @@ final class LoginController extends BaseController
 
     public function login(): void
     {
-        if ($this->app->auth()->check()) {
-            $this->app->redirect('/admin');
+        if ($this->auth->check()) {
+            $this->http->redirect('/admin');
         }
 
-        $username = trim((string) $this->app->request()->post('username', ''));
-        $password = (string) $this->app->request()->post('password', '');
+        $username = trim((string) $this->http->request()->post('username', ''));
+        $password = (string) $this->http->request()->post('password', '');
 
         if ($username === '' || $password === '') {
             Flash::set('error', 'Bitte Benutzername und Passwort eingeben.');
-            $this->app->redirect('/admin/login');
+            $this->http->redirect('/admin/login');
         }
 
-        if ($this->app->auth()->attempt($username, $password)) {
+        if ($this->auth->attempt($username, $password)) {
             CsrfToken::rotate();
-            $next = LoginRedirect::sanitize(trim((string) $this->app->request()->post('redirect', '')));
+            $next = LoginRedirect::sanitize(trim((string) $this->http->request()->post('redirect', '')));
             if ($next !== null) {
-                $this->app->redirect($next);
+                $this->http->redirect($next);
 
                 return;
             }
-            $this->app->redirect('/admin');
+            $this->http->redirect('/admin');
         }
 
         Flash::set('error', 'Zugangsdaten sind ungültig.');
-        $this->app->redirect('/admin/login');
+        $this->http->redirect('/admin/login');
     }
 }

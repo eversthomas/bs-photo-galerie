@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Controllers;
 
-use BSPhotoGalerie\Core\Application;
 use BSPhotoGalerie\Core\CsrfToken;
+use BSPhotoGalerie\Core\HttpContext;
 
 /**
  * Gemeinsame Hilfen für Controller (Views, Weiterleitung).
@@ -13,20 +13,20 @@ use BSPhotoGalerie\Core\CsrfToken;
 abstract class BaseController
 {
     public function __construct(
-        protected Application $app
+        protected HttpContext $http
     ) {
     }
 
     protected function render(string $template, array $data = [], ?string $layout = null): void
     {
-        $data['app'] = $this->app;
+        $data['app'] = $this->http;
         if (! array_key_exists('csrfToken', $data)) {
             $data['csrfToken'] = CsrfToken::token();
         }
         $data += ['flash' => []];
 
         extract($data, EXTR_SKIP);
-        $root = $this->app->root();
+        $root = $this->http->root();
         $tpl = $root . '/templates/' . $template . '.php';
 
         if (! is_file($tpl)) {

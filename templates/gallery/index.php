@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-/** @var \BSPhotoGalerie\Core\Application $app */
+/** @var \BSPhotoGalerie\Core\HttpContext $app */
 /** @var string $siteTitle */
 /** @var string $siteDescription */
 /** @var list<\BSPhotoGalerie\Models\Media> $items */

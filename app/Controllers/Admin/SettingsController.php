@@ -7,6 +7,9 @@ namespace BSPhotoGalerie\Controllers\Admin;
 use BSPhotoGalerie\Config\PublicAppearance;
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Models\SettingsRepository;
+use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Globale Galerie-Einstellungen (Diashow, Musik).
@@ -16,23 +19,30 @@ final class SettingsController extends BaseController
     /** @var list<int> */
     private const SLIDESHOW_INTERVALS = [3, 5, 8, 10, 15, 30, 60];
 
+    public function __construct(
+        HttpContext $http,
+        private SettingsRepository $settings,
+        private AuthService $auth
+    ) {
+        parent::__construct($http);
+    }
+
     public function index(): void
     {
-        $settings = $this->app->settingsRepository();
         $this->render(
             'admin/settings',
             [
                 'title' => 'Einstellungen',
-                'user' => $this->app->auth()->user(),
+                'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
-                'slideshowEnabled' => $settings->get('slideshow_enabled', '0') === '1',
-                'slideshowInterval' => (int) $settings->get('slideshow_interval_seconds', '5'),
+                'slideshowEnabled' => $this->settings->get('slideshow_enabled', '0') === '1',
+                'slideshowInterval' => (int) $this->settings->get('slideshow_interval_seconds', '5'),
                 'slideshowIntervalChoices' => self::SLIDESHOW_INTERVALS,
-                'musicEnabled' => $settings->get('background_music_enabled', '0') === '1',
-                'musicPlaylist' => $settings->get('music_playlist', ''),
-                'publicTheme' => PublicAppearance::normalizeTheme($settings->get('public_theme', 'default')),
-                'publicLayoutWidth' => PublicAppearance::normalizeLayoutWidth($settings->get('public_layout_width', 'standard')),
-                'publicBaseUrl' => $settings->get('public_base_url', ''),
+                'musicEnabled' => $this->settings->get('background_music_enabled', '0') === '1',
+                'musicPlaylist' => $this->settings->get('music_playlist', ''),
+                'publicTheme' => PublicAppearance::normalizeTheme($this->settings->get('public_theme', 'default')),
+                'publicLayoutWidth' => PublicAppearance::normalizeLayoutWidth($this->settings->get('public_layout_width', 'standard')),
+                'publicBaseUrl' => $this->settings->get('public_base_url', ''),
             ],
             'admin/layout'
         );
@@ -40,26 +50,24 @@ final class SettingsController extends BaseController
 
     public function update(): void
     {
-        $repo = $this->app->settingsRepository();
-
-        $slideshowOn = $this->app->request()->post('slideshow_enabled', '') === '1'
+        $slideshowOn = $this->http->request()->post('slideshow_enabled', '') === '1'
             ? '1'
             : '0';
 
-        $interval = (int) $this->app->request()->post('slideshow_interval_seconds', '5');
+        $interval = (int) $this->http->request()->post('slideshow_interval_seconds', '5');
         if (! in_array($interval, self::SLIDESHOW_INTERVALS, true)) {
             $interval = 5;
         }
 
-        $musicOn = $this->app->request()->post('background_music_enabled', '') === '1'
+        $musicOn = $this->http->request()->post('background_music_enabled', '') === '1'
             ? '1'
             : '0';
 
-        $rawPlaylist = (string) $this->app->request()->post('music_playlist', '');
+        $rawPlaylist = (string) $this->http->request()->post('music_playlist', '');
         $playlistError = $this->validateMusicPlaylist($rawPlaylist);
         if ($playlistError !== null) {
             Flash::set('error', $playlistError);
-            $this->app->redirect('/admin/settings');
+            $this->http->redirect('/admin/settings');
 
             return;
         }
@@ -67,36 +75,36 @@ final class SettingsController extends BaseController
         $normalizedPlaylist = $this->normalizeMusicPlaylist($rawPlaylist);
 
         $theme = PublicAppearance::normalizeTheme(
-            (string) $this->app->request()->post('public_theme', 'default')
+            (string) $this->http->request()->post('public_theme', 'default')
         );
         $layoutWidth = PublicAppearance::normalizeLayoutWidth(
-            (string) $this->app->request()->post('public_layout_width', 'standard')
+            (string) $this->http->request()->post('public_layout_width', 'standard')
         );
 
-        $repo->set('slideshow_enabled', $slideshowOn);
-        $repo->set('slideshow_interval_seconds', (string) $interval);
-        $repo->set('background_music_enabled', $musicOn);
-        $repo->set('music_playlist', $normalizedPlaylist);
-        $repo->set('public_theme', $theme);
-        $repo->set('public_layout_width', $layoutWidth);
+        $this->settings->set('slideshow_enabled', $slideshowOn);
+        $this->settings->set('slideshow_interval_seconds', (string) $interval);
+        $this->settings->set('background_music_enabled', $musicOn);
+        $this->settings->set('music_playlist', $normalizedPlaylist);
+        $this->settings->set('public_theme', $theme);
+        $this->settings->set('public_layout_width', $layoutWidth);
 
-        $baseUrl = trim((string) $this->app->request()->post('public_base_url', ''));
+        $baseUrl = trim((string) $this->http->request()->post('public_base_url', ''));
         if ($baseUrl !== '' && filter_var($baseUrl, FILTER_VALIDATE_URL) === false) {
             Flash::set('error', 'Öffentliche Basis-URL ist ungültig (vollständige URL mit https:// …).');
-            $this->app->redirect('/admin/settings');
+            $this->http->redirect('/admin/settings');
 
             return;
         }
         if ($baseUrl !== '' && str_contains($baseUrl, "\n")) {
             Flash::set('error', 'Öffentliche Basis-URL ungültig.');
-            $this->app->redirect('/admin/settings');
+            $this->http->redirect('/admin/settings');
 
             return;
         }
-        $repo->set('public_base_url', $baseUrl);
+        $this->settings->set('public_base_url', $baseUrl);
 
         Flash::set('success', 'Einstellungen gespeichert.');
-        $this->app->redirect('/admin/settings');
+        $this->http->redirect('/admin/settings');
     }
 
     private function validateMusicPlaylist(string $raw): ?string

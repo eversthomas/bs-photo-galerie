@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-/** @var \BSPhotoGalerie\Core\Application $app */
+/** @var \BSPhotoGalerie\Core\HttpContext $app */
 /** @var string $csrfToken */
 /** @var string $localVersion */
 /** @var array{tag:string,name:string,body:string,html_url:string,zipball_url:string,published_at:string,source:string,git_mode:string,git_ref:string}|null $remote */

@@ -4,32 +4,45 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Controllers;
 
-use BSPhotoGalerie\Core\Application;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Models\CategoryRepository;
+use BSPhotoGalerie\Models\MediaRepository;
+use BSPhotoGalerie\Models\SettingsRepository;
+use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Öffentliche Bildgalerie (Lightbox, Kategoriefilter).
  */
 final class GalleryController extends BaseController
 {
+    public function __construct(
+        HttpContext $http,
+        private SettingsRepository $settings,
+        private MediaRepository $media,
+        private CategoryRepository $categories,
+        private AuthService $auth
+    ) {
+        parent::__construct($http);
+    }
+
     /**
      * @return array{slideshowEnabled: bool, slideshowInterval: int, musicEnabled: bool, musicUrls: list<string>}
      */
     private function galleryRuntimeConfig(): array
     {
-        $settings = $this->app->settingsRepository();
-        $interval = (int) $settings->get('slideshow_interval_seconds', '5');
+        $interval = (int) $this->settings->get('slideshow_interval_seconds', '5');
         $interval = max(3, min(120, $interval));
 
-        $rawLines = self::parseMusicPlaylistLines($settings->get('music_playlist', ''));
+        $rawLines = self::parseMusicPlaylistLines($this->settings->get('music_playlist', ''));
         $musicUrls = [];
         foreach ($rawLines as $line) {
-            $musicUrls[] = self::resolvePublicMediaUrl($this->app, $line);
+            $musicUrls[] = self::resolvePublicMediaUrl($this->http, $line);
         }
 
         return [
-            'slideshowEnabled' => $settings->get('slideshow_enabled', '0') === '1',
+            'slideshowEnabled' => $this->settings->get('slideshow_enabled', '0') === '1',
             'slideshowInterval' => $interval,
-            'musicEnabled' => $settings->get('background_music_enabled', '0') === '1',
+            'musicEnabled' => $this->settings->get('background_music_enabled', '0') === '1',
             'musicUrls' => $musicUrls,
         ];
     }
@@ -51,13 +64,10 @@ final class GalleryController extends BaseController
         return $out;
     }
 
-    /**
-     * Stellt absolute Wiedergabe-URLs für das Hintergrund-Audio sicher (v. a. bei gesetzter public_base_url).
-     */
-    private static function resolvePublicMediaUrl(Application $app, string $line): string
+    private static function resolvePublicMediaUrl(HttpContext $http, string $line): string
     {
         if (str_starts_with($line, '/')) {
-            return $app->publicUrl($line);
+            return $http->publicUrl($line);
         }
 
         return $line;
@@ -65,13 +75,13 @@ final class GalleryController extends BaseController
 
     public function index(): void
     {
-        $guest = ! $this->app->auth()->check();
-        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, null, $guest);
-        $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
-        $description = $this->app->settingsRepository()->get('site_description', '');
-        $categories = $guest
-            ? $this->app->categoryRepository()->listPublicOrdered()
-            : $this->app->categoryRepository()->listAllOrdered();
+        $guest = ! $this->auth->check();
+        $items = $this->media->listPublicVisible(400, 0, null, $guest);
+        $siteTitle = $this->settings->get('site_title', 'BS Photo Galerie');
+        $description = $this->settings->get('site_description', '');
+        $cats = $guest
+            ? $this->categories->listPublicOrdered()
+            : $this->categories->listAllOrdered();
 
         $this->render(
             'gallery/index',
@@ -80,7 +90,7 @@ final class GalleryController extends BaseController
                 'siteTitle' => $siteTitle,
                 'siteDescription' => $description,
                 'items' => $items,
-                'categories' => $categories,
+                'categories' => $cats,
                 'currentCategory' => null,
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),
@@ -91,26 +101,26 @@ final class GalleryController extends BaseController
 
     public function category(string $slug): void
     {
-        $cat = $this->app->categoryRepository()->findBySlug($slug);
+        $cat = $this->categories->findBySlug($slug);
         if ($cat === null) {
-            $this->app->abort(404, 'Kategorie nicht gefunden.');
+            $this->http->abort(404, 'Kategorie nicht gefunden.');
         }
 
-        $guest = ! $this->app->auth()->check();
+        $guest = ! $this->auth->check();
         if ($guest && ! $cat['is_public']) {
-            $path = $this->app->request()->path();
-            $this->app->redirect('/admin/login?redirect=' . rawurlencode($path));
+            $path = $this->http->request()->path();
+            $this->http->redirect('/admin/login?redirect=' . rawurlencode($path));
 
             return;
         }
 
-        $items = $this->app->mediaRepository()->listPublicVisible(400, 0, $cat['id'], $guest);
-        $siteTitle = $this->app->settingsRepository()->get('site_title', 'BS Photo Galerie');
-        $description = $this->app->settingsRepository()->get('site_description', '');
+        $items = $this->media->listPublicVisible(400, 0, $cat['id'], $guest);
+        $siteTitle = $this->settings->get('site_title', 'BS Photo Galerie');
+        $description = $this->settings->get('site_description', '');
 
-        $categories = $guest
-            ? $this->app->categoryRepository()->listPublicOrdered()
-            : $this->app->categoryRepository()->listAllOrdered();
+        $cats = $guest
+            ? $this->categories->listPublicOrdered()
+            : $this->categories->listAllOrdered();
 
         $this->render(
             'gallery/index',
@@ -119,7 +129,7 @@ final class GalleryController extends BaseController
                 'siteTitle' => $siteTitle,
                 'siteDescription' => $description,
                 'items' => $items,
-                'categories' => $categories,
+                'categories' => $cats,
                 'currentCategory' => $cat,
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),

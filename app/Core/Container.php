@@ -6,6 +6,11 @@ namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ImportSettings;
 use BSPhotoGalerie\Config\MediaSettings;
+use ReflectionClass;
+use ReflectionNamedType;
+use ReflectionParameter;
+use ReflectionUnionType;
+use RuntimeException;
 use BSPhotoGalerie\Models\CategoryRepository;
 use BSPhotoGalerie\Models\MediaRepository;
 use BSPhotoGalerie\Models\SettingsRepository;
@@ -191,5 +196,71 @@ final class Container
         }
 
         return $this->mediaAdminService;
+    }
+
+    /**
+     * Instanziiert einen Controller (oder andere Klasse) per Constructor-Injection.
+     *
+     * @template T of object
+     * @param class-string<T> $class
+     * @return T
+     */
+    public function make(HttpContext $http, string $class): object
+    {
+        $ref = new ReflectionClass($class);
+        $ctor = $ref->getConstructor();
+        if ($ctor === null) {
+            /** @var T */
+            return $ref->newInstance();
+        }
+        $args = [];
+        foreach ($ctor->getParameters() as $param) {
+            $args[] = $this->resolveConstructorParameter($param, $http);
+        }
+
+        /** @var T */
+        return $ref->newInstanceArgs($args);
+    }
+
+    private function resolveConstructorParameter(ReflectionParameter $param, HttpContext $http): mixed
+    {
+        $type = $param->getType();
+        if ($type === null) {
+            if ($param->isDefaultValueAvailable()) {
+                return $param->getDefaultValue();
+            }
+            throw new RuntimeException('Parameter ' . $param->getName() . ' ohne Typ ist nicht auflösbar.');
+        }
+        if ($type instanceof ReflectionUnionType) {
+            throw new RuntimeException('Union-Typen für ' . $param->getName() . ' werden nicht unterstützt.');
+        }
+        if (! $type instanceof ReflectionNamedType) {
+            throw new RuntimeException('Ungültiger Parametertyp für ' . $param->getName() . '.');
+        }
+        if ($type->isBuiltin()) {
+            if ($param->isDefaultValueAvailable()) {
+                return $param->getDefaultValue();
+            }
+            throw new RuntimeException('Builtin-Parameter ' . $param->getName() . ' ist nicht auflösbar.');
+        }
+
+        $name = $type->getName();
+
+        return match ($name) {
+            HttpContext::class => $http,
+            Request::class => $http->request(),
+            Container::class => $this,
+            AuthService::class => $this->auth(),
+            SettingsRepository::class => $this->settingsRepository(),
+            MediaRepository::class => $this->mediaRepository(),
+            CategoryRepository::class => $this->categoryRepository(),
+            MediaUploadService::class => $this->mediaUploadService(),
+            MediaImportService::class => $this->mediaImportService(),
+            MediaAssetService::class => $this->mediaAssetService(),
+            ImportSettings::class => $this->importSettings(),
+            CategoryAdminService::class => $this->categoryAdminService(),
+            MediaAdminService::class => $this->mediaAdminService(),
+            default => throw new RuntimeException('Unbekannte Abhängigkeit: ' . $name . ' (' . $param->getName() . ').'),
+        };
     }
 }

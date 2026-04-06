@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Controllers;
 
-use BSPhotoGalerie\Core\Application;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Models\MediaRepository;
+use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Liefert JPEG-Vorschaubilder aus storage/thumbnails (öffentlich, keine Authentifizierung).
@@ -12,7 +14,9 @@ use BSPhotoGalerie\Core\Application;
 final class ThumbController
 {
     public function __construct(
-        private Application $app
+        private AuthService $auth,
+        private MediaRepository $media,
+        private HttpContext $http
     ) {
     }
 
@@ -21,18 +25,20 @@ final class ThumbController
         $mediaId = (int) $id;
         if ($mediaId < 1) {
             http_response_code(404);
+
             return;
         }
 
-        if (! $this->app->auth()->check() && ! $this->app->mediaRepository()->isPublicGuestAccessible($mediaId)) {
+        if (! $this->auth->check() && ! $this->media->isPublicGuestAccessible($mediaId)) {
             http_response_code(404);
 
             return;
         }
 
-        $path = $this->app->root() . '/storage/thumbnails/' . $mediaId . '.jpg';
+        $path = $this->http->root() . '/storage/thumbnails/' . $mediaId . '.jpg';
         if (! is_file($path) || ! is_readable($path)) {
             http_response_code(404);
+
             return;
         }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use BSPhotoGalerie\Config\PublicAppearance;
 
-/** @var \BSPhotoGalerie\Core\Application $app */
+/** @var \BSPhotoGalerie\Core\HttpContext $app */
 /** @var string $content */
 /** @var string $pageTitle */
 $includeGallery = ! empty($includeGalleryAssets);

@@ -6,7 +6,13 @@ namespace BSPhotoGalerie\Controllers\Admin;
 
 use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\Flash;
+use BSPhotoGalerie\Core\HttpContext;
+use BSPhotoGalerie\Models\CategoryRepository;
+use BSPhotoGalerie\Models\MediaRepository;
+use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Domain\MediaAdminService;
+use BSPhotoGalerie\Services\Media\MediaAssetService;
+use BSPhotoGalerie\Services\Media\MediaUploadService;
 use BSPhotoGalerie\Services\Media\UploadedFiles;
 
 /**
@@ -14,12 +20,23 @@ use BSPhotoGalerie\Services\Media\UploadedFiles;
  */
 final class MediaController extends BaseController
 {
+    public function __construct(
+        HttpContext $http,
+        private MediaRepository $mediaRepository,
+        private CategoryRepository $categoryRepository,
+        private AuthService $auth,
+        private MediaUploadService $mediaUploadService,
+        private MediaAssetService $mediaAssetService,
+        private MediaAdminService $mediaAdmin
+    ) {
+        parent::__construct($http);
+    }
+
     public function index(): void
     {
-        $svc = $this->app->mediaAdminService();
-        $period = $svc->normalizePeriod((string) ($this->app->request()->query('period', 'all') ?? 'all'));
-        $items = $this->app->mediaRepository()->listByUploadPeriod($period, 200, 0);
-        $categories = $this->app->categoryRepository()->listAllOrdered();
+        $period = $this->mediaAdmin->normalizePeriod((string) ($this->http->request()->query('period', 'all') ?? 'all'));
+        $items = $this->mediaRepository->listByUploadPeriod($period, 200, 0);
+        $categories = $this->categoryRepository->listAllOrdered();
         $this->render(
             'admin/media/index',
             [
@@ -29,7 +46,7 @@ final class MediaController extends BaseController
                 'mediaPeriod' => $period,
                 'mediaPeriodLabel' => MediaAdminService::PERIOD_LABELS[$period] ?? 'Alle',
                 'mediaPeriodLabels' => MediaAdminService::PERIOD_LABELS,
-                'user' => $this->app->auth()->user(),
+                'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
             ],
             'admin/layout'
@@ -38,13 +55,13 @@ final class MediaController extends BaseController
 
     public function uploadForm(): void
     {
-        $categories = $this->app->categoryRepository()->listAllOrdered();
+        $categories = $this->categoryRepository->listAllOrdered();
         $this->render(
             'admin/media/upload',
             [
                 'title' => 'Hochladen',
                 'categories' => $categories,
-                'user' => $this->app->auth()->user(),
+                'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
             ],
             'admin/layout'
@@ -53,21 +70,20 @@ final class MediaController extends BaseController
 
     public function upload(): void
     {
-        $files = UploadedFiles::normalizeList($this->app->request()->files()['images'] ?? null);
+        $files = UploadedFiles::normalizeList($this->http->request()->files()['images'] ?? null);
         if ($files === []) {
             Flash::set('error', 'Bitte mindestens eine Bilddatei auswählen.');
-            $this->app->redirect('/admin/media/upload');
+            $this->http->redirect('/admin/media/upload');
         }
 
-        $svc = $this->app->mediaAdminService();
-        $categoryId = $svc->resolveCategoryId($this->app->request()->post('category_id'));
-        $titleBase = $this->app->request()->post('title');
+        $categoryId = $this->mediaAdmin->resolveCategoryId($this->http->request()->post('category_id'));
+        $titleBase = $this->http->request()->post('title');
         $titleBase = is_string($titleBase) ? trim($titleBase) : null;
         if ($titleBase === '') {
             $titleBase = null;
         }
 
-        $result = $this->app->mediaUploadService()->processMany($files, $categoryId, $titleBase);
+        $result = $this->mediaUploadService->processMany($files, $categoryId, $titleBase);
 
         if ($result['imported'] > 0 && $result['errors'] === []) {
             Flash::set('success', $result['imported'] . ' Datei(en) erfolgreich hochgeladen.');
@@ -78,26 +94,26 @@ final class MediaController extends BaseController
             Flash::set('error', implode(' ', $result['errors']));
         }
 
-        $this->app->redirect('/admin/media');
+        $this->http->redirect('/admin/media');
     }
 
     public function edit(string $id): void
     {
         $mid = (int) $id;
-        $media = $this->app->mediaRepository()->findById($mid);
+        $media = $this->mediaRepository->findById($mid);
         if ($media === null) {
             Flash::set('error', 'Medium nicht gefunden.');
-            $this->app->redirect('/admin/media');
+            $this->http->redirect('/admin/media');
         }
 
-        $categories = $this->app->categoryRepository()->listAllOrdered();
+        $categories = $this->categoryRepository->listAllOrdered();
         $this->render(
             'admin/media/edit',
             [
                 'title' => 'Medium bearbeiten',
                 'media' => $media,
                 'categories' => $categories,
-                'user' => $this->app->auth()->user(),
+                'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
             ],
             'admin/layout'
@@ -107,18 +123,18 @@ final class MediaController extends BaseController
     public function update(string $id): void
     {
         $mid = (int) $id;
-        $media = $this->app->mediaRepository()->findById($mid);
+        $media = $this->mediaRepository->findById($mid);
         if ($media === null) {
             Flash::set('error', 'Medium nicht gefunden.');
-            $this->app->redirect('/admin/media');
+            $this->http->redirect('/admin/media');
         }
 
-        $title = trim((string) $this->app->request()->post('title', ''));
-        $description = (string) $this->app->request()->post('description', '');
-        $categoryId = $this->app->mediaAdminService()->resolveCategoryId($this->app->request()->post('category_id'));
-        $visible = $this->app->request()->post('is_visible') === '1';
+        $title = trim((string) $this->http->request()->post('title', ''));
+        $description = (string) $this->http->request()->post('description', '');
+        $categoryId = $this->mediaAdmin->resolveCategoryId($this->http->request()->post('category_id'));
+        $visible = $this->http->request()->post('is_visible') === '1';
 
-        $this->app->mediaRepository()->updateMetadata(
+        $this->mediaRepository->updateMetadata(
             $mid,
             $title !== '' ? $title : $media->title,
             $description,
@@ -127,53 +143,51 @@ final class MediaController extends BaseController
         );
 
         Flash::set('success', 'Änderungen gespeichert.');
-        $this->app->redirect('/admin/media/' . $mid . '/edit');
+        $this->http->redirect('/admin/media/' . $mid . '/edit');
     }
 
     public function destroy(string $id): void
     {
         $mid = (int) $id;
-        if (! $this->app->mediaAssetService()->deleteCompletely($mid)) {
+        if (! $this->mediaAssetService->deleteCompletely($mid)) {
             Flash::set('error', 'Medium nicht gefunden.');
-            $this->app->redirect('/admin/media');
+            $this->http->redirect('/admin/media');
         }
 
         Flash::set('success', 'Medium gelöscht.');
-        $this->app->redirect('/admin/media');
+        $this->http->redirect('/admin/media');
     }
 
     public function reorder(): void
     {
-        $svc = $this->app->mediaAdminService();
-        $period = $svc->normalizePeriod((string) $this->app->request()->post('period', 'all'));
-        $result = $svc->reorderFromPost($period, $this->app->request()->post('order'));
+        $period = $this->mediaAdmin->normalizePeriod((string) $this->http->request()->post('period', 'all'));
+        $result = $this->mediaAdmin->reorderFromPost($period, $this->http->request()->post('order'));
 
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
-            $this->app->redirect('/admin/media' . $result['query']);
+            $this->http->redirect('/admin/media' . $result['query']);
 
             return;
         }
 
         Flash::set('success', 'Reihenfolge gespeichert.');
-        $this->app->redirect('/admin/media' . $result['query']);
+        $this->http->redirect('/admin/media' . $result['query']);
     }
 
     public function bulkCategory(): void
     {
-        $svc = $this->app->mediaAdminService();
-        $periodRaw = (string) $this->app->request()->post('period', 'all');
-        $ids = $svc->parseBulkIdsFromPost($this->app->request()->post('ids'));
+        $periodRaw = (string) $this->http->request()->post('period', 'all');
+        $ids = $this->mediaAdmin->parseBulkIdsFromPost($this->http->request()->post('ids'));
 
-        $result = $svc->bulkAssignCategoryFromPost(
+        $result = $this->mediaAdmin->bulkAssignCategoryFromPost(
             $ids,
-            $this->app->request()->post('bulk_category_id'),
+            $this->http->request()->post('bulk_category_id'),
             $periodRaw
         );
 
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
-            $this->app->redirect('/admin/media' . $result['query']);
+            $this->http->redirect('/admin/media' . $result['query']);
 
             return;
         }
@@ -199,30 +213,30 @@ final class MediaController extends BaseController
                     : $updated . ' Bilder wurden der Kategorie zugewiesen.'
             );
         }
-        $this->app->redirect('/admin/media' . $q);
+        $this->http->redirect('/admin/media' . $q);
     }
 
     public function inlineTitle(): void
     {
-        $idRaw = $this->app->request()->post('id');
-        $titleRaw = $this->app->request()->post('title');
+        $idRaw = $this->http->request()->post('id');
+        $titleRaw = $this->http->request()->post('title');
 
         if (! is_string($idRaw) || ! ctype_digit($idRaw)) {
             Flash::set('error', 'Ungültige Anfrage.');
-            $this->app->redirect('/admin/media');
+            $this->http->redirect('/admin/media');
         }
 
         $mid = (int) $idRaw;
-        $media = $this->app->mediaRepository()->findById($mid);
+        $media = $this->mediaRepository->findById($mid);
         if ($media === null) {
             Flash::set('error', 'Medium nicht gefunden.');
-            $this->app->redirect('/admin/media');
+            $this->http->redirect('/admin/media');
         }
 
         $title = is_string($titleRaw) ? trim($titleRaw) : '';
-        $this->app->mediaRepository()->updateTitle($mid, $title !== '' ? $title : $media->title);
+        $this->mediaRepository->updateTitle($mid, $title !== '' ? $title : $media->title);
 
         Flash::set('success', 'Titel aktualisiert.');
-        $this->app->redirect('/admin/media');
+        $this->http->redirect('/admin/media');
     }
 }
