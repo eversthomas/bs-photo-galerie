@@ -22,6 +22,10 @@ use BSPhotoGalerie\Models\CategoryRepository;
 use BSPhotoGalerie\Models\MediaRepository;
 use BSPhotoGalerie\Models\SettingsRepository;
 use BSPhotoGalerie\Models\UserRepository;
+use BSPhotoGalerie\Services\Application\ImportRunService;
+use BSPhotoGalerie\Services\Application\MediaItemApplicationService;
+use BSPhotoGalerie\Services\Application\SettingsUpdateService;
+use BSPhotoGalerie\Services\Application\UpdateApplyService;
 use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Database;
 use BSPhotoGalerie\Services\Domain\CategoryAdminService;
@@ -137,6 +141,26 @@ final class Application
     public function mediaAdminService(): MediaAdminService
     {
         return $this->container->mediaAdminService();
+    }
+
+    public function updateApplyService(): UpdateApplyService
+    {
+        return $this->container->updateApplyService();
+    }
+
+    public function settingsUpdateService(): SettingsUpdateService
+    {
+        return $this->container->settingsUpdateService();
+    }
+
+    public function importRunService(): ImportRunService
+    {
+        return $this->container->importRunService();
+    }
+
+    public function mediaItemApplicationService(): MediaItemApplicationService
+    {
+        return $this->container->mediaItemApplicationService();
     }
 
     public function run(): void

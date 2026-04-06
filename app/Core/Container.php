@@ -19,6 +19,10 @@ use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Database;
 use BSPhotoGalerie\Services\Domain\CategoryAdminService;
 use BSPhotoGalerie\Services\Domain\MediaAdminService;
+use BSPhotoGalerie\Services\Application\ImportRunService;
+use BSPhotoGalerie\Services\Application\MediaItemApplicationService;
+use BSPhotoGalerie\Services\Application\SettingsUpdateService;
+use BSPhotoGalerie\Services\Application\UpdateApplyService;
 use BSPhotoGalerie\Services\Import\MediaImportService;
 use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
@@ -51,6 +55,14 @@ final class Container
     private ?CategoryAdminService $categoryAdminService = null;
 
     private ?MediaAdminService $mediaAdminService = null;
+
+    private ?UpdateApplyService $updateApplyService = null;
+
+    private ?SettingsUpdateService $settingsUpdateService = null;
+
+    private ?ImportRunService $importRunService = null;
+
+    private ?MediaItemApplicationService $mediaItemApplicationService = null;
 
     /**
      * @param array<string, mixed> $config
@@ -198,6 +210,50 @@ final class Container
         return $this->mediaAdminService;
     }
 
+    public function updateApplyService(): UpdateApplyService
+    {
+        if ($this->updateApplyService === null) {
+            $this->updateApplyService = new UpdateApplyService($this->projectRoot);
+        }
+
+        return $this->updateApplyService;
+    }
+
+    public function settingsUpdateService(): SettingsUpdateService
+    {
+        if ($this->settingsUpdateService === null) {
+            $this->settingsUpdateService = new SettingsUpdateService($this->settingsRepository());
+        }
+
+        return $this->settingsUpdateService;
+    }
+
+    public function importRunService(): ImportRunService
+    {
+        if ($this->importRunService === null) {
+            $this->importRunService = new ImportRunService(
+                $this->mediaImportService(),
+                $this->importSettings(),
+                $this->mediaAdminService()
+            );
+        }
+
+        return $this->importRunService;
+    }
+
+    public function mediaItemApplicationService(): MediaItemApplicationService
+    {
+        if ($this->mediaItemApplicationService === null) {
+            $this->mediaItemApplicationService = new MediaItemApplicationService(
+                $this->mediaRepository(),
+                $this->mediaAssetService(),
+                $this->mediaAdminService()
+            );
+        }
+
+        return $this->mediaItemApplicationService;
+    }
+
     /**
      * Instanziiert einen Controller (oder andere Klasse) per Constructor-Injection.
      *
@@ -260,6 +316,10 @@ final class Container
             ImportSettings::class => $this->importSettings(),
             CategoryAdminService::class => $this->categoryAdminService(),
             MediaAdminService::class => $this->mediaAdminService(),
+            UpdateApplyService::class => $this->updateApplyService(),
+            SettingsUpdateService::class => $this->settingsUpdateService(),
+            ImportRunService::class => $this->importRunService(),
+            MediaItemApplicationService::class => $this->mediaItemApplicationService(),
             default => throw new RuntimeException('Unbekannte Abhängigkeit: ' . $name . ' (' . $param->getName() . ').'),
         };
     }

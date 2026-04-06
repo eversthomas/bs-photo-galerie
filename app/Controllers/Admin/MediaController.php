@@ -10,8 +10,8 @@ use BSPhotoGalerie\Core\HttpContext;
 use BSPhotoGalerie\Models\CategoryRepository;
 use BSPhotoGalerie\Models\MediaRepository;
 use BSPhotoGalerie\Services\AuthService;
+use BSPhotoGalerie\Services\Application\MediaItemApplicationService;
 use BSPhotoGalerie\Services\Domain\MediaAdminService;
-use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
 use BSPhotoGalerie\Services\Media\UploadedFiles;
 
@@ -26,8 +26,8 @@ final class MediaController extends BaseController
         private CategoryRepository $categoryRepository,
         private AuthService $auth,
         private MediaUploadService $mediaUploadService,
-        private MediaAssetService $mediaAssetService,
-        private MediaAdminService $mediaAdmin
+        private MediaAdminService $mediaAdmin,
+        private MediaItemApplicationService $mediaItems
     ) {
         parent::__construct($http);
     }
@@ -123,24 +123,10 @@ final class MediaController extends BaseController
     public function update(string $id): void
     {
         $mid = (int) $id;
-        $media = $this->mediaRepository->findById($mid);
-        if ($media === null) {
+        if (! $this->mediaItems->updateMetadataFromPost($mid, $this->http->request())) {
             Flash::set('error', 'Medium nicht gefunden.');
             $this->http->redirect('/admin/media');
         }
-
-        $title = trim((string) $this->http->request()->post('title', ''));
-        $description = (string) $this->http->request()->post('description', '');
-        $categoryId = $this->mediaAdmin->resolveCategoryId($this->http->request()->post('category_id'));
-        $visible = $this->http->request()->post('is_visible') === '1';
-
-        $this->mediaRepository->updateMetadata(
-            $mid,
-            $title !== '' ? $title : $media->title,
-            $description,
-            $categoryId,
-            $visible
-        );
 
         Flash::set('success', 'Änderungen gespeichert.');
         $this->http->redirect('/admin/media/' . $mid . '/edit');
@@ -149,7 +135,7 @@ final class MediaController extends BaseController
     public function destroy(string $id): void
     {
         $mid = (int) $id;
-        if (! $this->mediaAssetService->deleteCompletely($mid)) {
+        if (! $this->mediaItems->deleteById($mid)) {
             Flash::set('error', 'Medium nicht gefunden.');
             $this->http->redirect('/admin/media');
         }
@@ -218,23 +204,11 @@ final class MediaController extends BaseController
 
     public function inlineTitle(): void
     {
-        $idRaw = $this->http->request()->post('id');
-        $titleRaw = $this->http->request()->post('title');
-
-        if (! is_string($idRaw) || ! ctype_digit($idRaw)) {
-            Flash::set('error', 'Ungültige Anfrage.');
+        $result = $this->mediaItems->inlineTitleFromRequest($this->http->request());
+        if (! $result['ok']) {
+            Flash::set('error', $result['error']);
             $this->http->redirect('/admin/media');
         }
-
-        $mid = (int) $idRaw;
-        $media = $this->mediaRepository->findById($mid);
-        if ($media === null) {
-            Flash::set('error', 'Medium nicht gefunden.');
-            $this->http->redirect('/admin/media');
-        }
-
-        $title = is_string($titleRaw) ? trim($titleRaw) : '';
-        $this->mediaRepository->updateTitle($mid, $title !== '' ? $title : $media->title);
 
         Flash::set('success', 'Titel aktualisiert.');
         $this->http->redirect('/admin/media');

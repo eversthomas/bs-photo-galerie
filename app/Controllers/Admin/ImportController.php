@@ -9,8 +9,8 @@ use BSPhotoGalerie\Controllers\BaseController;
 use BSPhotoGalerie\Core\Flash;
 use BSPhotoGalerie\Core\HttpContext;
 use BSPhotoGalerie\Models\CategoryRepository;
+use BSPhotoGalerie\Services\Application\ImportRunService;
 use BSPhotoGalerie\Services\AuthService;
-use BSPhotoGalerie\Services\Domain\MediaAdminService;
 use BSPhotoGalerie\Services\Import\MediaImportService;
 
 /**
@@ -24,7 +24,7 @@ final class ImportController extends BaseController
         private CategoryRepository $categoryRepository,
         private ImportSettings $importSettings,
         private AuthService $auth,
-        private MediaAdminService $mediaAdmin
+        private ImportRunService $importRun
     ) {
         parent::__construct($http);
     }
@@ -52,27 +52,8 @@ final class ImportController extends BaseController
 
     public function run(): void
     {
-        $pullFtp = isset($_POST['pull_ftp']) && $_POST['pull_ftp'] === '1';
-        $removeMissing = isset($_POST['remove_missing']) && $_POST['remove_missing'] === '1';
-
-        $categoryId = $this->mediaAdmin->resolveCategoryId($this->http->request()->post('category_id'));
-
-        $result = $this->mediaImport->run($categoryId, $pullFtp, $removeMissing);
-
-        $parts = [];
-        if ($pullFtp && $this->importSettings->ftpEnabled()) {
-            $parts[] = 'FTP: ' . $result['ftp_downloaded'] . ' heruntergeladen, ' . $result['ftp_skipped'] . ' übersprungen.';
-        }
-        $parts[] = 'Importiert: ' . $result['imported'] . ' Datei(en).';
-        if ($removeMissing) {
-            $parts[] = 'Aus Datenbank entfernt (fehlende Datei): ' . $result['removed_db'] . '.';
-        }
-        if ($result['errors'] !== []) {
-            Flash::set('error', implode(' ', $parts) . ' — ' . implode('; ', $result['errors']));
-        } else {
-            Flash::set('success', implode(' ', $parts));
-        }
-
+        $outcome = $this->importRun->runFromRequest($this->http->request());
+        Flash::set($outcome['type'], $outcome['message']);
         $this->http->redirect('/admin/import');
     }
 }

@@ -266,4 +266,12 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 
 ---
 
+## Optionale Änderungen, Überprüfungen, Verbesserungen
+- werden die Metadaten der Bilder ausgelesen und irgendwo gespeichert?
+- kann man die Metadaten neu einlesen lassen?
+- können Metadaten für Darstellung genutztz werden (Filter, Datum wann ein Foto erstellt wurde, Reihenfolge nach Datum)?
+
+- Wie sieht es mit den Einstellungen aus? Erkläre genauer, wofür die Basis-Url gut ist.
+- Kann man Links für Externe einzelner Kategorien verschicken, sind diese im backend aufrugbar und kopierbar?
+
 *END*
