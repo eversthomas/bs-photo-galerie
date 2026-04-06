@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Controllers\Admin;
 
 use BSPhotoGalerie\Controllers\BaseController;
+use BSPhotoGalerie\Core\AuditLog;
 use BSPhotoGalerie\Core\Flash;
 use BSPhotoGalerie\Core\HttpContext;
 use BSPhotoGalerie\Services\AuthService;
@@ -25,7 +26,8 @@ final class UpdateController extends BaseController
     public function __construct(
         HttpContext $http,
         private AuthService $auth,
-        private UpdateApplyService $updateApply
+        private UpdateApplyService $updateApply,
+        private AuditLog $audit
     ) {
         parent::__construct($http);
     }
@@ -72,6 +74,7 @@ final class UpdateController extends BaseController
     public function refreshCache(): void
     {
         $this->updateApply->clearGithubReleaseCache();
+        $this->audit->record('update.cache.cleared', []);
         Flash::set('success', 'Update-Cache wurde geleert. Der GitHub-Stand wird beim nächsten Aufruf neu geladen.');
         $this->http->redirect('/admin/update');
     }

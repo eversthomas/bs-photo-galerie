@@ -76,6 +76,12 @@ $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-s
                 <?php endforeach; ?>
             </select>
             <button type="submit" class="button-secondary">Zuweisen</button>
+            <button type="submit"
+                    class="button-secondary"
+                    formaction="<?= htmlspecialchars($app->url('/admin/media/bulk-refresh-exif'), ENT_QUOTES, 'UTF-8') ?>"
+                    formmethod="post">
+                EXIF neu einlesen
+            </button>
         </form>
 
         <div class="<?= htmlspecialchars($gridClass, ENT_QUOTES, 'UTF-8') ?>" role="list" id="media-sortable" data-initial-order="<?= htmlspecialchars($orderCsv, ENT_QUOTES, 'UTF-8') ?>" data-sortable="<?= $sortable ? '1' : '0' ?>">

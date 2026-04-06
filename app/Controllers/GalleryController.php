@@ -73,10 +73,22 @@ final class GalleryController extends BaseController
         return $line;
     }
 
+    /**
+     * @return 'manual'|'exif_date'
+     */
+    private function publicGallerySort(): string
+    {
+        $raw = (string) ($this->http->request()->query('sort', '') ?? '');
+        $raw = strtolower(trim($raw));
+
+        return ($raw === 'exif' || $raw === 'exif_date') ? 'exif_date' : 'manual';
+    }
+
     public function index(): void
     {
         $guest = ! $this->auth->check();
-        $items = $this->media->listPublicVisible(400, 0, null, $guest);
+        $sort = $this->publicGallerySort();
+        $items = $this->media->listPublicVisible(400, 0, null, $guest, $sort);
         $siteTitle = $this->settings->get('site_title', 'BS Photo Galerie');
         $description = $this->settings->get('site_description', '');
         $cats = $guest
@@ -92,6 +104,7 @@ final class GalleryController extends BaseController
                 'items' => $items,
                 'categories' => $cats,
                 'currentCategory' => null,
+                'gallerySort' => $sort === 'exif_date' ? 'exif' : 'manual',
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),
             ],
@@ -114,7 +127,8 @@ final class GalleryController extends BaseController
             return;
         }
 
-        $items = $this->media->listPublicVisible(400, 0, $cat['id'], $guest);
+        $sort = $this->publicGallerySort();
+        $items = $this->media->listPublicVisible(400, 0, $cat['id'], $guest, $sort);
         $siteTitle = $this->settings->get('site_title', 'BS Photo Galerie');
         $description = $this->settings->get('site_description', '');
 
@@ -131,6 +145,7 @@ final class GalleryController extends BaseController
                 'items' => $items,
                 'categories' => $cats,
                 'currentCategory' => $cat,
+                'gallerySort' => $sort === 'exif_date' ? 'exif' : 'manual',
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),
             ],

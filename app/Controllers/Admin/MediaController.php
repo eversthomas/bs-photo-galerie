@@ -132,6 +132,26 @@ final class MediaController extends BaseController
         $this->http->redirect('/admin/media/' . $mid . '/edit');
     }
 
+    public function refreshExif(string $id): void
+    {
+        $mid = (int) $id;
+        $result = $this->mediaItems->refreshExifFromDisk($mid);
+        if (! $result['ok']) {
+            Flash::set('error', $result['error']);
+            $this->http->redirect('/admin/media/' . $mid . '/edit');
+        }
+
+        if ($result['had_exif']) {
+            Flash::set('success', 'EXIF-Metadaten wurden neu eingelesen und gespeichert.');
+        } else {
+            Flash::set(
+                'info',
+                'Es wurden keine EXIF-Daten gefunden (z. B. PNG/WebP/GIF oder EXIF-Erweiterung fehlt). Der Eintrag wurde aktualisiert.'
+            );
+        }
+        $this->http->redirect('/admin/media/' . $mid . '/edit');
+    }
+
     public function destroy(string $id): void
     {
         $mid = (int) $id;
@@ -198,6 +218,35 @@ final class MediaController extends BaseController
                     ? 'Ein Bild wurde der Kategorie zugewiesen.'
                     : $updated . ' Bilder wurden der Kategorie zugewiesen.'
             );
+        }
+        $this->http->redirect('/admin/media' . $q);
+    }
+
+    public function bulkRefreshExif(): void
+    {
+        $periodRaw = (string) $this->http->request()->post('period', 'all');
+        $period = $this->mediaAdmin->normalizePeriod($periodRaw);
+        $q = $this->mediaAdmin->periodQuery($period);
+        $ids = $this->mediaAdmin->parseBulkIdsFromPost($this->http->request()->post('ids'));
+
+        if ($ids === []) {
+            Flash::set('error', 'Bitte mindestens ein Bild auswählen.');
+            $this->http->redirect('/admin/media' . $q);
+
+            return;
+        }
+
+        $stats = $this->mediaItems->refreshExifForIds($ids);
+        $parts = [
+            $stats['with_exif'] . ' mit EXIF',
+            $stats['without_exif'] . ' ohne EXIF',
+        ];
+        if ($stats['failed'] > 0) {
+            $parts[] = $stats['failed'] . ' fehlgeschlagen';
+        }
+        Flash::set('success', 'EXIF neu eingelesen: ' . implode(', ', $parts) . '.');
+        if ($stats['failed'] > 0) {
+            Flash::add('info', 'Fehlgeschlagen: Medium nicht gefunden oder Datei nicht lesbar.');
         }
         $this->http->redirect('/admin/media' . $q);
     }

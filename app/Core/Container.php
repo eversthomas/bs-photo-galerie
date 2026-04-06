@@ -6,6 +6,7 @@ namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ImportSettings;
 use BSPhotoGalerie\Config\MediaSettings;
+use BSPhotoGalerie\Core\AuditLog;
 use BSPhotoGalerie\Events\EventDispatcher;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -25,8 +26,12 @@ use BSPhotoGalerie\Services\Application\MediaItemApplicationService;
 use BSPhotoGalerie\Services\Application\SettingsUpdateService;
 use BSPhotoGalerie\Services\Application\UpdateApplyService;
 use BSPhotoGalerie\Services\Import\MediaImportService;
+use BSPhotoGalerie\Services\Category\CategoryService;
 use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
+use BSPhotoGalerie\Services\Media\UploadContentScannerInterface;
+use BSPhotoGalerie\Services\Media\UploadScannerChain;
+use BSPhotoGalerie\Services\Media\UploadSecurityPolicy;
 use BSPhotoGalerie\Services\SchemaPatches;
 use Intervention\Image\ImageManager;
 
@@ -67,6 +72,21 @@ final class Container
 
     private ?EventDispatcher $eventDispatcher = null;
 
+    /** @var array<string, callable(self): object> */
+    private array $bindings = [];
+
+    /** @var array<string, object> */
+    private array $bindingInstances = [];
+
+    /** @var list<UploadContentScannerInterface> */
+    private array $uploadScanners = [];
+
+    private ?UploadScannerChain $uploadScannerChainInstance = null;
+
+    private ?CategoryService $categoryService = null;
+
+    private ?AuditLog $auditLog = null;
+
     /**
      * @param array<string, mixed> $config
      */
@@ -87,6 +107,46 @@ final class Container
     public function config(): array
     {
         return $this->config;
+    }
+
+    /**
+     * Erweiterung: eigene Singletons/Factories registrieren (Vollqualifizierter Klassenname als $id).
+     *
+     * @param callable(self): object $factory
+     */
+    public function register(string $id, callable $factory): void
+    {
+        if (isset($this->bindingInstances[$id])) {
+            throw new RuntimeException('Service "' . $id . '" wurde bereits instanziiert und kann nicht neu registriert werden.');
+        }
+        $this->bindings[$id] = $factory;
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $id
+     * @return T
+     */
+    public function get(string $id): object
+    {
+        if (! isset($this->bindings[$id]) && ! isset($this->bindingInstances[$id])) {
+            throw new RuntimeException('Unbekannte Service-ID: ' . $id);
+        }
+
+        /** @var T */
+        return $this->resolveRegistered($id);
+    }
+
+    public function addUploadScanner(UploadContentScannerInterface $scanner): void
+    {
+        if ($this->uploadScannerChainInstance !== null) {
+            throw new RuntimeException('Upload-Scanner können nicht registriert werden, die Kette wurde bereits erzeugt.');
+        }
+        if ($this->mediaUploadService !== null) {
+            throw new RuntimeException('Upload-Scanner zu spät registriert (MediaUploadService bereits aktiv).');
+        }
+
+        $this->uploadScanners[] = $scanner;
     }
 
     public function database(): Database
@@ -113,10 +173,19 @@ final class Container
     public function auth(): AuthService
     {
         if ($this->auth === null) {
-            $this->auth = new AuthService($this->users());
+            $this->auth = new AuthService($this->users(), $this->auditLog());
         }
 
         return $this->auth;
+    }
+
+    public function auditLog(): AuditLog
+    {
+        if ($this->auditLog === null) {
+            $this->auditLog = new AuditLog($this->projectRoot);
+        }
+
+        return $this->auditLog;
     }
 
     public function mediaRepository(): MediaRepository
@@ -150,12 +219,14 @@ final class Container
     {
         if ($this->mediaUploadService === null) {
             $settings = MediaSettings::fromAppConfig($this->config);
+            $policy = new UploadSecurityPolicy($settings);
             $this->mediaUploadService = new MediaUploadService(
                 $this->projectRoot,
                 $this->mediaRepository(),
-                $settings,
+                $policy,
                 ImageManager::gd(),
-                $this->eventDispatcher()
+                $this->eventDispatcher(),
+                $this->uploadScannerChain()
             );
         }
 
@@ -202,6 +273,15 @@ final class Container
         return $this->categoryAdminService;
     }
 
+    public function categoryService(): CategoryService
+    {
+        if ($this->categoryService === null) {
+            $this->categoryService = new CategoryService($this->categoryAdminService());
+        }
+
+        return $this->categoryService;
+    }
+
     public function mediaAdminService(): MediaAdminService
     {
         if ($this->mediaAdminService === null) {
@@ -219,7 +299,8 @@ final class Container
         if ($this->updateApplyService === null) {
             $this->updateApplyService = new UpdateApplyService(
                 $this->projectRoot,
-                $this->eventDispatcher()
+                $this->eventDispatcher(),
+                $this->auditLog()
             );
         }
 
@@ -254,7 +335,8 @@ final class Container
             $this->mediaItemApplicationService = new MediaItemApplicationService(
                 $this->mediaRepository(),
                 $this->mediaAssetService(),
-                $this->mediaAdminService()
+                $this->mediaAdminService(),
+                $this->projectRoot
             );
         }
 
@@ -268,6 +350,42 @@ final class Container
         }
 
         return $this->eventDispatcher;
+    }
+
+    private function uploadScannerChain(): UploadScannerChain
+    {
+        if ($this->uploadScannerChainInstance === null) {
+            $this->uploadScannerChainInstance = new UploadScannerChain($this->uploadScanners);
+        }
+
+        return $this->uploadScannerChainInstance;
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $id
+     * @return T
+     */
+    private function resolveRegistered(string $id): object
+    {
+        if (! isset($this->bindingInstances[$id])) {
+            if (! isset($this->bindings[$id])) {
+                throw new RuntimeException('Unbekannte Service-ID: ' . $id);
+            }
+            $this->bindingInstances[$id] = ($this->bindings[$id])($this);
+        }
+
+        /** @var T */
+        return $this->bindingInstances[$id];
+    }
+
+    private function tryResolveRegisteredClass(string $class): ?object
+    {
+        if (isset($this->bindings[$class]) || isset($this->bindingInstances[$class])) {
+            return $this->resolveRegistered($class);
+        }
+
+        return null;
     }
 
     /**
@@ -337,7 +455,10 @@ final class Container
             ImportRunService::class => $this->importRunService(),
             MediaItemApplicationService::class => $this->mediaItemApplicationService(),
             EventDispatcher::class => $this->eventDispatcher(),
-            default => throw new RuntimeException('Unbekannte Abhängigkeit: ' . $name . ' (' . $param->getName() . ').'),
+            CategoryService::class => $this->categoryService(),
+            AuditLog::class => $this->auditLog(),
+            default => $this->tryResolveRegisteredClass($name)
+                ?? throw new RuntimeException('Unbekannte Abhängigkeit: ' . $name . ' (' . $param->getName() . ').'),
         };
     }
 }

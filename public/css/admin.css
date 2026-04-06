@@ -706,3 +706,22 @@ a:hover {
     clip: rect(0, 0, 0, 0);
     border: 0;
 }
+
+.category-url-copy {
+    display: block;
+    margin-top: 0.35rem;
+}
+
+.category-url-field {
+    display: block;
+    width: 100%;
+    max-width: min(100%, 36rem);
+    padding: 0.35rem 0.45rem;
+    border-radius: 6px;
+    border: 1px solid var(--admin-border);
+    background: #020617;
+    color: var(--admin-muted);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: text;
+}

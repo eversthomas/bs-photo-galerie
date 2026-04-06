@@ -13,15 +13,19 @@ final class ExceptionLogger
 {
     private const MAX_FILE_BYTES = 2_097_152;
 
-    public static function logThrowable(string $projectRoot, Throwable $e, ?string $requestSummary = null): void
+    /**
+     * @return string Korrelations-ID (Support / Logzuordnung)
+     */
+    public static function logThrowable(string $projectRoot, Throwable $e, ?string $requestSummary = null): string
     {
-        $line = self::formatOneLine($e, $requestSummary);
+        $correlationId = bin2hex(random_bytes(8));
+        $line = self::formatOneLine($e, $requestSummary, $correlationId);
         error_log('[BSPHOTO] ' . $line);
 
         $dir = rtrim($projectRoot, '/') . '/storage/logs';
         try {
             if (! is_dir($dir) && ! @mkdir($dir, 0755, true) && ! is_dir($dir)) {
-                return;
+                return $correlationId;
             }
 
             $file = $dir . '/exceptions-' . date('Y-m-d') . '.log';
@@ -29,19 +33,21 @@ final class ExceptionLogger
             if ($size !== false && $size > self::MAX_FILE_BYTES) {
                 error_log('[BSPHOTO] Logdatei zu groß (' . $file . '), Eintrag nur in error_log.');
 
-                return;
+                return $correlationId;
             }
 
-            $block = '[' . date('c') . '] ' . $line . "\n" . $e->getTraceAsString() . "\n\n";
+            $block = '[' . date('c') . '] [' . $correlationId . '] ' . $line . "\n" . $e->getTraceAsString() . "\n\n";
             @file_put_contents($file, $block, FILE_APPEND | LOCK_EX);
         } catch (\Throwable) {
         }
+
+        return $correlationId;
     }
 
-    private static function formatOneLine(Throwable $e, ?string $requestSummary): string
+    private static function formatOneLine(Throwable $e, ?string $requestSummary, string $correlationId): string
     {
         $req = $requestSummary !== null && $requestSummary !== '' ? ' | ' . $requestSummary : '';
 
-        return $e::class . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . $req;
+        return '[' . $correlationId . '] ' . $e::class . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . $req;
     }
 }

@@ -6,16 +6,7 @@ namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ConfigRepository;
 use BSPhotoGalerie\Config\ImportSettings;
-use BSPhotoGalerie\Controllers\Admin\CategoryController;
-use BSPhotoGalerie\Controllers\Admin\DashboardController;
 use BSPhotoGalerie\Controllers\Admin\LoginController;
-use BSPhotoGalerie\Controllers\Admin\ImportController;
-use BSPhotoGalerie\Controllers\Admin\MediaController;
-use BSPhotoGalerie\Controllers\Admin\SettingsController;
-use BSPhotoGalerie\Controllers\Admin\UpdateController;
-use BSPhotoGalerie\Controllers\GalleryController;
-use BSPhotoGalerie\Controllers\HomeController;
-use BSPhotoGalerie\Controllers\ThumbController;
 use BSPhotoGalerie\Events\EventDispatcher;
 use BSPhotoGalerie\Middleware\AuthMiddleware;
 use BSPhotoGalerie\Middleware\CsrfMiddleware;
@@ -28,6 +19,7 @@ use BSPhotoGalerie\Services\Application\MediaItemApplicationService;
 use BSPhotoGalerie\Services\Application\SettingsUpdateService;
 use BSPhotoGalerie\Services\Application\UpdateApplyService;
 use BSPhotoGalerie\Services\AuthService;
+use BSPhotoGalerie\Services\Category\CategoryService;
 use BSPhotoGalerie\Services\Database;
 use BSPhotoGalerie\Services\Domain\CategoryAdminService;
 use BSPhotoGalerie\Services\Domain\MediaAdminService;
@@ -35,14 +27,12 @@ use BSPhotoGalerie\Services\Import\MediaImportService;
 use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
 use FastRoute\Dispatcher;
-use FastRoute\RouteCollector;
 use RuntimeException;
 use Throwable;
 
-use function FastRoute\simpleDispatcher;
-
 /**
  * Front-Controller: Request, Routing, Session; Dienste über {@see Container}.
+ * Zusätzliche Service-IDs: {@see Container::register()}, {@see Container::get()}.
  */
 final class Application
 {
@@ -58,8 +48,26 @@ final class Application
         $repo = new ConfigRepository();
         $config = $repo->load($this->projectRoot);
         $this->container = new Container($this->projectRoot, $config);
+        $this->loadOptionalContainerExtension($this->projectRoot . '/config/upload_scanners.php');
+        $this->loadOptionalContainerExtension($this->projectRoot . '/config/custom_services.php');
         $this->request = Request::fromGlobals();
         $this->loadOptionalEventListeners();
+    }
+
+    /**
+     * Optional: callable(Container): void — z. B. {@see Container::register()}.
+     */
+    private function loadOptionalContainerExtension(string $path): void
+    {
+        if (! is_file($path)) {
+            return;
+        }
+
+        /** @var mixed $fn */
+        $fn = require $path;
+        if (is_callable($fn)) {
+            $fn($this->container);
+        }
     }
 
     /**
@@ -157,6 +165,11 @@ final class Application
         return $this->container->categoryAdminService();
     }
 
+    public function categoryService(): CategoryService
+    {
+        return $this->container->categoryService();
+    }
+
     public function mediaAdminService(): MediaAdminService
     {
         return $this->container->mediaAdminService();
@@ -185,6 +198,11 @@ final class Application
     public function eventDispatcher(): EventDispatcher
     {
         return $this->container->eventDispatcher();
+    }
+
+    public function auditLog(): AuditLog
+    {
+        return $this->container->auditLog();
     }
 
     public function run(): void
@@ -284,46 +302,9 @@ final class Application
 
     private function router(): Dispatcher
     {
-        if ($this->dispatcher !== null) {
-            return $this->dispatcher;
+        if ($this->dispatcher === null) {
+            $this->dispatcher = HttpRouteRegistry::build();
         }
-
-        $R = static fn (string $auth, array $handler): array => ['handler' => $handler, 'auth' => $auth];
-
-        $this->dispatcher = simpleDispatcher(function (RouteCollector $r) use ($R): void {
-            $r->addRoute('GET', '/', $R('public', [HomeController::class, 'index']));
-            $r->addRoute('GET', '/galerie', $R('public', [GalleryController::class, 'index']));
-            $r->addRoute('GET', '/galerie/kategorie/{slug:[a-zA-Z0-9\\-]+}', $R('public', [GalleryController::class, 'category']));
-            $r->addRoute('GET', '/thumb/{id:\d+}', $R('public', [ThumbController::class, 'show']));
-            $r->addRoute('GET', '/admin', $R('admin', [DashboardController::class, 'index']));
-            $r->addGroup('/admin', function (RouteCollector $r) use ($R): void {
-                $r->addRoute('GET', '/login', $R('login', [LoginController::class, 'showForm']));
-                $r->addRoute('POST', '/login', $R('login', [LoginController::class, 'login']));
-                $r->addRoute('POST', '/logout', $R('admin', [DashboardController::class, 'logout']));
-                $r->addRoute('GET', '/categories', $R('admin', [CategoryController::class, 'index']));
-                $r->addRoute('GET', '/categories/create', $R('admin', [CategoryController::class, 'create']));
-                $r->addRoute('POST', '/categories/store', $R('admin', [CategoryController::class, 'store']));
-                $r->addRoute('GET', '/categories/{id:\d+}/edit', $R('admin', [CategoryController::class, 'edit']));
-                $r->addRoute('POST', '/categories/{id:\d+}/update', $R('admin', [CategoryController::class, 'update']));
-                $r->addRoute('POST', '/categories/{id:\d+}/delete', $R('admin', [CategoryController::class, 'delete']));
-                $r->addRoute('GET', '/media', $R('admin', [MediaController::class, 'index']));
-                $r->addRoute('GET', '/media/upload', $R('admin', [MediaController::class, 'uploadForm']));
-                $r->addRoute('POST', '/media/upload', $R('admin', [MediaController::class, 'upload']));
-                $r->addRoute('POST', '/media/reorder', $R('admin', [MediaController::class, 'reorder']));
-                $r->addRoute('POST', '/media/bulk-category', $R('admin', [MediaController::class, 'bulkCategory']));
-                $r->addRoute('POST', '/media/inline-title', $R('admin', [MediaController::class, 'inlineTitle']));
-                $r->addRoute('GET', '/media/{id:\d+}/edit', $R('admin', [MediaController::class, 'edit']));
-                $r->addRoute('POST', '/media/{id:\d+}/update', $R('admin', [MediaController::class, 'update']));
-                $r->addRoute('POST', '/media/{id:\d+}/delete', $R('admin', [MediaController::class, 'destroy']));
-                $r->addRoute('GET', '/import', $R('admin', [ImportController::class, 'index']));
-                $r->addRoute('POST', '/import/run', $R('admin', [ImportController::class, 'run']));
-                $r->addRoute('GET', '/settings', $R('admin', [SettingsController::class, 'index']));
-                $r->addRoute('POST', '/settings/update', $R('admin', [SettingsController::class, 'update']));
-                $r->addRoute('GET', '/update', $R('admin', [UpdateController::class, 'index']));
-                $r->addRoute('POST', '/update/refresh', $R('admin', [UpdateController::class, 'refreshCache']));
-                $r->addRoute('POST', '/update/apply', $R('admin', [UpdateController::class, 'apply']));
-            });
-        });
 
         return $this->dispatcher;
     }
@@ -337,10 +318,13 @@ final class Application
     public static function handleException(Throwable $e, ?string $projectRoot = null, ?string $requestSummary = null): void
     {
         if ($projectRoot !== null && $projectRoot !== '') {
-            ExceptionLogger::logThrowable($projectRoot, $e, $requestSummary);
+            $correlationId = ExceptionLogger::logThrowable($projectRoot, $e, $requestSummary);
         } else {
+            $correlationId = bin2hex(random_bytes(8));
             error_log(
-                '[BSPHOTO] '
+                '[BSPHOTO]['
+                . $correlationId
+                . '] '
                 . $e::class
                 . ': '
                 . $e->getMessage()
@@ -357,6 +341,9 @@ final class Application
         if (self::exceptionDebugEnabled()) {
             echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Fehler (Debug)</title></head><body>';
             echo '<h1>Interner Fehler</h1>';
+            echo '<p>Referenz: <code>'
+                . htmlspecialchars($correlationId, ENT_QUOTES, 'UTF-8')
+                . '</code></p>';
             echo '<pre>'
                 . htmlspecialchars(
                     $e::class . ': ' . $e->getMessage() . "\n\n" . $e->getTraceAsString(),
@@ -368,7 +355,9 @@ final class Application
             return;
         }
 
-        echo '<p>Interner Fehler.</p>';
+        echo '<p>Interner Fehler.</p><p>Referenz: <code>'
+            . htmlspecialchars($correlationId, ENT_QUOTES, 'UTF-8')
+            . '</code></p>';
     }
 
     private static function exceptionDebugEnabled(): bool

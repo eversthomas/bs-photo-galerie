@@ -9,8 +9,16 @@ declare(strict_types=1);
 /** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $categories */
 /** @var array{id:int,name:string,slug:string,sort_order:int,is_public:bool}|null $currentCategory */
 /** @var array{slideshowEnabled: bool, slideshowInterval: int, musicEnabled: bool, musicUrls: list<string>} $galleryRuntimeConfig */
+/** @var string $gallerySort manual|exif */
 
 $isFiltered = $currentCategory !== null;
+$gallerySort = $gallerySort ?? 'manual';
+$sortQs = $gallerySort === 'exif' ? 'sort=exif' : '';
+$withSort = static function (string $path) use ($app, $sortQs): string {
+    $base = $app->publicUrl($path);
+
+    return $sortQs === '' ? $base : ($base . (str_contains($base, '?') ? '&' : '?') . $sortQs);
+};
 $galleryRuntimeJson = json_encode(
     $galleryRuntimeConfig,
     JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
@@ -27,15 +35,34 @@ $galleryRuntimeJson = json_encode(
 
     <?php if ($categories !== []) : ?>
         <nav class="gallery-filters" aria-label="Kategorien">
-            <a class="gallery-filter<?= ! $isFiltered ? ' is-active' : '' ?>" href="<?= htmlspecialchars($app->publicUrl('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Alle</a>
+            <a class="gallery-filter<?= ! $isFiltered ? ' is-active' : '' ?>" href="<?= htmlspecialchars($withSort('/galerie'), ENT_QUOTES, 'UTF-8') ?>">Alle</a>
             <?php foreach ($categories as $c) : ?>
                 <a class="gallery-filter<?= ($isFiltered && $currentCategory['id'] === $c['id']) ? ' is-active' : '' ?>"
-                   href="<?= htmlspecialchars($app->publicUrl('/galerie/kategorie/' . rawurlencode($c['slug'])), ENT_QUOTES, 'UTF-8') ?>">
+                   href="<?= htmlspecialchars($withSort('/galerie/kategorie/' . rawurlencode($c['slug'])), ENT_QUOTES, 'UTF-8') ?>">
                     <?= htmlspecialchars($c['name'], ENT_QUOTES, 'UTF-8') ?>
                 </a>
             <?php endforeach; ?>
         </nav>
     <?php endif; ?>
+        <nav class="gallery-sort" aria-label="Sortierung">
+            <span class="gallery-sort-label muted">Sortierung:</span>
+            <a class="gallery-sort-opt<?= $gallerySort === 'manual' ? ' is-active' : '' ?>"
+               href="<?= htmlspecialchars(
+                   $isFiltered
+                       ? $app->publicUrl('/galerie/kategorie/' . rawurlencode($currentCategory['slug']))
+                       : $app->publicUrl('/galerie'),
+                   ENT_QUOTES,
+                   'UTF-8'
+               ) ?>">Manuell</a>
+            <a class="gallery-sort-opt<?= $gallerySort === 'exif' ? ' is-active' : '' ?>"
+               href="<?= htmlspecialchars(
+                   $isFiltered
+                       ? $app->publicUrl('/galerie/kategorie/' . rawurlencode($currentCategory['slug']) . '?sort=exif')
+                       : $app->publicUrl('/galerie?sort=exif'),
+                   ENT_QUOTES,
+                   'UTF-8'
+               ) ?>">Aufnahmedatum</a>
+        </nav>
 
     <?php if ($items === []) : ?>
         <p class="gallery-empty">Noch keine öffentlichen Bilder. Schalte Bilder in der Verwaltung auf „sichtbar“.</p>

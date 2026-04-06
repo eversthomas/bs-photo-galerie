@@ -127,9 +127,29 @@
 
 ---
 
+### Phase 4 – Umsetzung „Konkrete technische Zielbilder“ (Abschnitt 4)
+
+> **Erledigt** — Abschnitt 4 dieses Dokuments ist im Code umgesetzt: erweiterbarer `Container` (`register`/`get` + DI-Fallback), schlankere `Application` (Routen in `HttpRouteRegistry`), `CategoryService` als HTTP-Sicht auf Kategorien, `UploadSecurityPolicy` + optionale `UploadContentScannerInterface`-Kette, 500er-Antwort mit **Korrelations-ID** in Log und HTML. Optional: `config/upload_scanners.php` (zuerst geladen), `config/custom_services.php` — jeweils `callable(Container): void`.
+
+---
+
+### Phase 5 – Sicherheit & Betrieb (Abschnitt 6)
+
+> **Erledigt** — **Audit-Logging** für authentifizierte Aktionen: `AuditLogger` / `AuditLog` schreiben strukturierte JSON-Zeilen nach `storage/logs/audit-YYYY-MM-DD.log` und spiegeln minimal in `error_log`. Ereignisse: `auth.login.success`, `auth.login.failed` (ohne Passwort), `auth.logout`, `update.apply.executing|success|failed`, `update.cache.cleared`. Hinweis zu Vorschaubildern: `ThumbController`-Docblock verweist auf `MediaRepository::isPublicGuestAccessible()` bei neuen Medientypen.
+
+---
+
+### Phase 6 – Sicherheits-Härtung (Roadmap § 6, Restpunkte)
+
+> **Erledigt** — **Session-Idle-Timeout** optional via `BSPHOTO_SESSION_IDLE_SECONDS` (Abmeldung + Hinweis-Flash in `AuthMiddleware`); **Cross-Origin-Opener-Policy: same-origin** standardmäßig in `SecurityHeaders` (deaktivierbar mit `BSPHOTO_COOP_SAME_ORIGIN=0`); **CSP Report-Only** unverändert optional (`BSPHOTO_CSP_REPORT_ONLY`); **Deployment-Hinweise** in `config/.env.example` (DocumentRoot `public/`, `.env`/`config/.htaccess`).
+
+---
+
 ## 4. Konkrete technische Zielbilder
 
 ### 4.1 Dependency Injection (schlichter Container)
+
+> **Erledigt** — siehe `Container::register()`, `Container::get()`, Anbindung in `resolveConstructorParameter`; optional `config/custom_services.php`.
 
 **Ziel-Klassenstruktur (Skizze):**
 
@@ -173,6 +193,8 @@ final class Container
 
 ### 4.2 Service Layer
 
+> **Erledigt** — u. a. `app/Services/Category/CategoryService.php` (`createFromRequest`, `updateFromRequest`); Domänen-Logik bleibt in `CategoryAdminService`.
+
 **Zielbild:**
 
 ```text
@@ -186,6 +208,8 @@ Controller bleiben für HTTP zuständig; Entscheidungen („was ist ein gültige
 ---
 
 ### 4.3 Error Handling / Logging
+
+> **Erledigt** — `ExceptionLogger` vergibt Korrelations-ID pro Eintrag; `Application::handleException` zeigt die Referenz in Production und Debug.
 
 **Zielbild:**
 
@@ -209,6 +233,8 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 ---
 
 ### 4.4 Upload-Sicherheit
+
+> **Erledigt** — `UploadSecurityPolicy` (Limit/MIME zentral über `MediaSettings`); `UploadScannerChain` + `UploadContentScannerInterface`, optional `config/upload_scanners.php`.
 
 **Ist (bereits stark):** `MediaUploadService::processOne()` – `is_uploaded_file`, Größe, `finfo` MIME, Whitelist, Re-Check nach Speichern (`assertMimeOnDiskMatches`), Intervention Image öffnet Datei, Thumbnail-Fehler rollt DB+Datei zurück (`persistNewMediaAtPath`, Zeilen 262–270).
 
@@ -248,10 +274,10 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 | Risiko | Evidence | Fix-Strategie |
 |--------|----------|----------------|
 | Misleading „Update fehlgeschlagen“ nach Git | `GitApplicationUpdater.php` 128–132 | Composer optional/warnend wie ZIP-Pfad (Phase 1.1) |
-| Keine Audit-Logs bei Authentifizierung / Update | `AuthService`, `UpdateController` – kein zentrales Log | strukturiertes Log für Login-Versuche, Update-Start/-Ende |
-| 500 ohne Nachvollziehbarkeit | `Application::handleException` Zeilen 398–403 | Logging + Korrelation |
-| Kein CSP | `SecurityHeaders.php` nur nosniff/frameoptions | CSP report-only evaluieren |
-| Session Fixation | bereits `session_regenerate_id(true)` bei Login (`AuthService.php` 81) | beibehalten; Timeout/Idle policy prüfen (Konfiguration) |
+| Keine Audit-Logs bei Authentifizierung / Update | *(vor Phase 5)* | **Erledigt (Phase 5):** `AuditLog` / `storage/logs/audit-*.log` |
+| 500 ohne Nachvollziehbarkeit | *(behoben)* | Logging + Korrelation (Phase 4) |
+| Kein CSP | `SecurityHeaders.php` | Report-Only optional (`BSPHOTO_CSP_REPORT_ONLY`); Phase 6: COOP-Härtung |
+| Session Fixation / Idle | `AuthService`, `AuthMiddleware` | Regenerate bei Login; optional **Idle-Timeout** `BSPHOTO_SESSION_IDLE_SECONDS` (Phase 6) |
 | Bulk/Media | `MediaController` hat `reorder`, `bulk-category` (Routen in `Application.php` 376–377) | CSRF geschützt (POST global); Rechte nur „eingeloggter Admin“ – bei Mehrbenutzer später feingranular |
 
 ### Konkrete ToDos
@@ -261,7 +287,7 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 3. **`error_log` oder Datei-Logger** in `handleException` + Rotation (z. B. max. Größe) unter `storage/logs/`.  
 4. **Thumb-Zugriff:** `ThumbController` prüft `isPublicGuestAccessible` (Zeilen 27–31) – bei neuen Medientypen Regeln mitziehen.  
 5. **Upload:** weiterhin kein Vertrauen in Client-`type` aus `$_FILES` allein – IST nutzt `finfo` (gut); bei neuen Formaten nur über `MediaSettings` whitelisten.  
-6. **GitHub-Token:** `.env` `GITHUB_API_TOKEN` – sicherstellen, dass `config/.env` nicht im Web-Root auslieferbar ist (Deployment-Check, nicht im Repo committen).
+6. **GitHub-Token:** `.env` `GITHUB_API_TOKEN` – sicherstellen, dass `config/.env` nicht im Web-Root auslieferbar ist (**Erledigt Phase 6:** Hinweise in `config/.env.example`, `config/.htaccess`).
 
 ---
 
@@ -270,8 +296,11 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 | Bereich | Pfad |
 |---------|------|
 | Front Controller | `public/index.php`, `index.php` |
-| App-Kern | `app/Core/Application.php`, `Container.php`, `Request.php`, `SecurityHeaders.php`, `CsrfToken.php`, `Flash.php` |
+| App-Kern | `app/Core/Application.php`, `Container.php`, `HttpRouteRegistry.php`, `Request.php`, `SecurityHeaders.php`, `CsrfToken.php`, `Flash.php`, `ExceptionLogger.php`, `AuditLogger.php`, `AuditLog.php` |
 | Events (Erweiterungen) | `app/Events/*.php`, optional `config/event_listeners.php` |
+| Container-Erweiterungen | optional `config/custom_services.php`, `config/upload_scanners.php` |
+| Kategorie-Service | `app/Services/Category/CategoryService.php` |
+| Upload (Policy/Scanner) | `app/Services/Media/UploadSecurityPolicy.php`, `UploadScannerChain.php`, `UploadContentScannerInterface.php` |
 | Datenbank | `app/Services/Database.php` |
 | Auth / CSRF Middleware | `app/Middleware/AuthMiddleware.php`, `CsrfMiddleware.php`, `app/Services/AuthService.php` |
 | Upload | `app/Services/Media/MediaUploadService.php`, `UploadedFiles.php` |
@@ -281,11 +310,15 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 ---
 
 ## Optionale Änderungen, Überprüfungen, Verbesserungen
-- werden die Metadaten der Bilder ausgelesen und irgendwo gespeichert?
-- kann man die Metadaten neu einlesen lassen?
-- können Metadaten für Darstellung genutztz werden (Filter, Datum wann ein Foto erstellt wurde, Reihenfolge nach Datum)?
 
-- Wie sieht es mit den Einstellungen aus? Erkläre genauer, wofür die Basis-Url gut ist.
-- Kann man Links für Externe einzelner Kategorien verschicken, sind diese im backend aufrugbar und kopierbar?
+| Thema | Status | Kurz |
+|-------|--------|------|
+| EXIF/MIME-Metadaten auslesen & in DB speichern | **Erledigt** | `ExifExtractor` → Spalte `exif_json` beim Upload/Import (JPEG/TIFF). |
+| Metadaten **neu einlesen** | **Erledigt** | Admin: Einzeln auf Bearbeiten-Seite; **Massenaktion** in der Medienliste; optional `bin/refresh-exif.php`. |
+| Metadaten in **öffentlicher Darstellung** (Filter, Sorte nach Aufnahmedatum) | **Erledigt** | Galerie: `?sort=exif` / Nav „Aufnahmedatum“; Sortierung per `exif_json` (MySQL), ohne EXIF hinten. |
+| **Basis-URL** (Zweck & Doku) | **Erledigt / ergänzt** | `public_base_url` + `HttpContext::publicUrl()`; Hilfetext in den Einstellungen ausgebaut. |
+| **Kategorie-Links** für Externe (Backend) | **Erledigt / ergänzt** | Link-Spalte + **kopierbare URL**; Hinweis bei **privaten** Kategorien (Login für Gäste). |
+
+*Nächste sinnvolle Erweiterungen:* z. B. weitere EXIF-Felder in der Lightbox; Export der Metadaten.
 
 *END*

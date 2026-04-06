@@ -10,6 +10,9 @@ use BSPhotoGalerie\Services\AuthService;
 
 /**
  * Liefert JPEG-Vorschaubilder aus storage/thumbnails (öffentlich, keine Authentifizierung).
+ *
+ * Sichtbarkeit für Gäste: {@see MediaRepository::isPublicGuestAccessible()} — bei neuen Medientypen
+ * oder geänderter Veröffentlichungslogik diese zentrale Prüfung anpassen (nicht nur MIME hier).
  */
 final class ThumbController
 {

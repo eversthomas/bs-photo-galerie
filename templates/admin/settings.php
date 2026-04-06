@@ -27,7 +27,7 @@ declare(strict_types=1);
                 <input type="url" name="public_base_url" value="<?= htmlspecialchars($publicBaseUrl, ENT_QUOTES, 'UTF-8') ?>"
                        placeholder="https://fotos.example.de" inputmode="url" autocomplete="off">
             </label>
-            <p class="small muted">Wenn gesetzt, verwenden Startseite und Navigation <strong>absolute Links</strong> zu Galerie und Verwaltung (hilft bei kanonischer Subdomain). Leer lassen = relativ zur aktuellen Domain.</p>
+            <p class="small muted">Wenn gesetzt, erzeugen <code>publicUrl()</code> und die öffentlichen Vorlagen <strong>absolute URLs</strong> mit dieser Domain (z. B. <code>https://fotos.example.de/galerie</code>). Das ist sinnvoll bei Zugriff über mehrere Hostnamen, E-Mail/Social mit festem Link, CDN/Proxy oder wenn die Verwaltung unter einem anderen Host liegt. Leer lassen = Links relativ zur aktuell aufgerufenen Domain (normal bei einfachem Setup).</p>
         </fieldset>
 
         <fieldset class="admin-fieldset">

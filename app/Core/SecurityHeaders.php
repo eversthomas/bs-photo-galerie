@@ -22,9 +22,35 @@ final class SecurityHeaders
             'Permissions-Policy: accelerometer=(), ambient-light-sensor=(), battery=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
         );
 
+        if (self::coopSameOriginEnabled()) {
+            header('Cross-Origin-Opener-Policy: same-origin');
+        }
+
         if (self::cspReportOnlyEnabled()) {
             header('Content-Security-Policy-Report-Only: ' . self::cspReportOnlyDirectives());
         }
+    }
+
+    /**
+     * Standard: an (Abschwächung von Cross-Origin-Zugriffen über window); abschalten: BSPHOTO_COOP_SAME_ORIGIN=0
+     */
+    private static function coopSameOriginEnabled(): bool
+    {
+        $raw = $_ENV['BSPHOTO_COOP_SAME_ORIGIN'] ?? getenv('BSPHOTO_COOP_SAME_ORIGIN');
+        if ($raw === false || $raw === null || $raw === '') {
+            return true;
+        }
+
+        $s = strtolower(trim((string) $raw));
+        if (in_array($s, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+
+        if (in_array($s, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+
+        return true;
     }
 
     /**

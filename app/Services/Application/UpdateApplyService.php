@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Services\Application;
 
+use BSPhotoGalerie\Core\AuditLog;
 use BSPhotoGalerie\Core\Request;
 use BSPhotoGalerie\Events\AfterGitUpdateAppliedEvent;
 use BSPhotoGalerie\Events\AfterZipUpdateEvent;
@@ -21,7 +22,8 @@ final class UpdateApplyService
 {
     public function __construct(
         private string $projectRoot,
-        private EventDispatcher $events
+        private EventDispatcher $events,
+        private AuditLog $audit
     ) {
     }
 
@@ -92,6 +94,13 @@ final class UpdateApplyService
             return new UpdateApplyResult('error', 'Es liegt bereits eine gleiche oder neuere Version vor.');
         }
 
+        $this->audit->record('update.apply.executing', [
+            'channel' => $channel,
+            'target_tag' => $targetTag,
+            'from_version' => $local,
+            'release_tag' => $remote['tag'],
+        ]);
+
         if ($channel === 'zip') {
             if ($remote['zipball_url'] === '') {
                 return new UpdateApplyResult('error', 'Keine ZIP-URL von GitHub — Update derzeit nicht möglich.');
@@ -128,8 +137,23 @@ final class UpdateApplyService
                 );
             }
 
+            $this->audit->record('update.apply.success', [
+                'channel' => $channel,
+                'from_version' => $local,
+                'to_version' => $newLocal,
+                'release_tag' => $remote['tag'],
+                'composer_ok' => $result['composer_ok'] ?? null,
+            ]);
+
             return new UpdateApplyResult('success', $msg);
         }
+
+        $this->audit->record('update.apply.failed', [
+            'channel' => $channel,
+            'from_version' => $local,
+            'release_tag' => $remote['tag'],
+            'detail' => implode('; ', array_slice($result['log'], 0, 8)),
+        ]);
 
         return new UpdateApplyResult(
             'error',

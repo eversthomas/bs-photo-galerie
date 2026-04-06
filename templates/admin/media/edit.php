@@ -38,6 +38,14 @@ declare(strict_types=1);
         </label>
         <button type="submit" class="button-primary">Speichern</button>
     </form>
+    <fieldset class="admin-fieldset">
+        <legend>EXIF-Metadaten</legend>
+        <p class="small muted">Aus der Originaldatei neu einlesen (sinnvoll für JPEG/TIFF mit <code>ext-exif</code>). Andere Formate liefern meist kein EXIF.</p>
+        <form method="post" action="<?= htmlspecialchars($app->url('/admin/media/' . $media->id . '/refresh-exif'), ENT_QUOTES, 'UTF-8') ?>" class="inline-form">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="submit" class="button-secondary">EXIF neu einlesen</button>
+        </form>
+    </fieldset>
     <p class="small muted">
         <a href="<?= htmlspecialchars($app->url('/admin/media'), ENT_QUOTES, 'UTF-8') ?>">Zurück zur Medienliste</a>
         · Datei: <span class="mono"><?= htmlspecialchars($media->storagePath, ENT_QUOTES, 'UTF-8') ?></span>

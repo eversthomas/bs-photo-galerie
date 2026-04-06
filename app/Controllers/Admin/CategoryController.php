@@ -9,7 +9,7 @@ use BSPhotoGalerie\Core\Flash;
 use BSPhotoGalerie\Core\HttpContext;
 use BSPhotoGalerie\Models\CategoryRepository;
 use BSPhotoGalerie\Services\AuthService;
-use BSPhotoGalerie\Services\Domain\CategoryAdminService;
+use BSPhotoGalerie\Services\Category\CategoryService;
 
 /**
  * Kategorien verwalten.
@@ -19,7 +19,7 @@ final class CategoryController extends BaseController
     public function __construct(
         HttpContext $http,
         private CategoryRepository $categoryRepository,
-        private CategoryAdminService $categoryAdmin,
+        private CategoryService $categories,
         private AuthService $auth
     ) {
         parent::__construct($http);
@@ -56,11 +56,7 @@ final class CategoryController extends BaseController
 
     public function store(): void
     {
-        $name = (string) $this->http->request()->post('name', '');
-        $slugInput = (string) $this->http->request()->post('slug', '');
-        $isPublic = $this->http->request()->post('is_public', '') === '1';
-
-        $result = $this->categoryAdmin->create($name, $slugInput, $isPublic);
+        $result = $this->categories->createFromRequest($this->http->request());
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
             $this->http->redirect('/admin/categories/create');
@@ -94,11 +90,7 @@ final class CategoryController extends BaseController
     public function update(string $id): void
     {
         $cid = (int) $id;
-        $name = (string) $this->http->request()->post('name', '');
-        $slugInput = (string) $this->http->request()->post('slug', '');
-        $isPublic = $this->http->request()->post('is_public', '') === '1';
-
-        $result = $this->categoryAdmin->update($cid, $name, $slugInput, $isPublic);
+        $result = $this->categories->updateFromRequest($cid, $this->http->request());
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
             $this->http->redirect('/admin/categories/' . $cid . '/edit');
@@ -111,7 +103,7 @@ final class CategoryController extends BaseController
     public function delete(string $id): void
     {
         $cid = (int) $id;
-        $result = $this->categoryAdmin->delete($cid);
+        $result = $this->categories->deleteById($cid);
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
             $this->http->redirect('/admin/categories');

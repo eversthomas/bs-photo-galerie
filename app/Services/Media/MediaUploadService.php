@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace BSPhotoGalerie\Services\Media;
 
-use BSPhotoGalerie\Config\MediaSettings;
 use BSPhotoGalerie\Events\EventDispatcher;
 use BSPhotoGalerie\Events\MediaUploadedEvent;
 use BSPhotoGalerie\Models\MediaRepository;
@@ -19,9 +18,10 @@ final class MediaUploadService
     public function __construct(
         private string $projectRoot,
         private MediaRepository $mediaRepository,
-        private MediaSettings $settings,
+        private UploadSecurityPolicy $uploadPolicy,
         private ImageManager $imageManager,
-        private EventDispatcher $events
+        private EventDispatcher $events,
+        private UploadScannerChain $uploadScanners
     ) {
     }
 
@@ -41,7 +41,7 @@ final class MediaUploadService
             throw new RuntimeException('Quelldatei nicht lesbar: ' . $absoluteSourcePath);
         }
 
-        $max = $this->settings->maxUploadBytes();
+        $max = $this->uploadPolicy->maxUploadBytes();
         $size = filesize($resolved);
         if ($size === false || $size > $max) {
             throw new RuntimeException(
@@ -50,7 +50,7 @@ final class MediaUploadService
         }
 
         $mime = $this->detectMime($resolved);
-        $allowed = $this->settings->allowedMimeTypes();
+        $allowed = $this->uploadPolicy->allowedMimeTypes();
         if (! in_array($mime, $allowed, true)) {
             throw new RuntimeException('Dateityp nicht erlaubt (' . $mime . ').');
         }
@@ -82,6 +82,8 @@ final class MediaUploadService
         if (! copy($resolved, $absolutePath)) {
             throw new RuntimeException('Datei konnte nicht nach uploads/ kopiert werden.');
         }
+
+        $this->uploadScanners->scan($absolutePath, $mime);
 
         try {
             $this->persistNewMediaAtPath(
@@ -148,7 +150,7 @@ final class MediaUploadService
             throw new RuntimeException('Ungültige Upload-Datei.');
         }
 
-        $max = $this->settings->maxUploadBytes();
+        $max = $this->uploadPolicy->maxUploadBytes();
         if (($file['size'] ?? 0) > $max) {
             throw new RuntimeException(
                 'Datei zu groß (max. ' . (string) (int) round($max / 1024 / 1024) . ' MB).'
@@ -156,7 +158,7 @@ final class MediaUploadService
         }
 
         $mime = $this->detectMime($tmp);
-        $allowed = $this->settings->allowedMimeTypes();
+        $allowed = $this->uploadPolicy->allowedMimeTypes();
         if (! in_array($mime, $allowed, true)) {
             throw new RuntimeException('Dateityp nicht erlaubt (' . $mime . ').');
         }
@@ -188,6 +190,8 @@ final class MediaUploadService
         if (! move_uploaded_file($tmp, $absolutePath)) {
             throw new RuntimeException('Datei konnte nicht gespeichert werden.');
         }
+
+        $this->uploadScanners->scan($absolutePath, $mime);
 
         try {
             $this->persistNewMediaAtPath(
@@ -227,7 +231,7 @@ final class MediaUploadService
             throw new RuntimeException('Bild konnte nicht gelesen werden (beschädigt oder nicht unterstützt).');
         }
 
-        $maxPx = $this->settings->maxImagePixels();
+        $maxPx = $this->uploadPolicy->maxImagePixels();
         if ($width < 1 || $height < 1 || $width > 32_000 || $height > 32_000) {
             throw new RuntimeException('Ungültige Bildabmessungen.');
         }
@@ -264,7 +268,7 @@ final class MediaUploadService
 
         $thumbPath = $this->projectRoot . '/storage/thumbnails/' . $mediaId . '.jpg';
         try {
-            (new ThumbnailGenerator($this->imageManager, $this->settings->thumbnailMaxWidth()))
+            (new ThumbnailGenerator($this->imageManager, $this->uploadPolicy->thumbnailMaxWidth()))
                 ->createJpegThumbnail($absolutePath, $thumbPath);
         } catch (\Throwable $e) {
             $this->mediaRepository->deleteById($mediaId);
@@ -288,7 +292,7 @@ final class MediaUploadService
         if ($onDisk !== $expectedMime) {
             throw new RuntimeException('Dateiinhalt passt nicht zum erkannten Bildtyp (MIME: ' . $onDisk . ').');
         }
-        if (! in_array($onDisk, $this->settings->allowedMimeTypes(), true)) {
+        if (! in_array($onDisk, $this->uploadPolicy->allowedMimeTypes(), true)) {
             throw new RuntimeException('Dateityp nach Speichern nicht erlaubt (' . $onDisk . ').');
         }
     }

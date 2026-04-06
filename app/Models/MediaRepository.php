@@ -119,34 +119,43 @@ final class MediaRepository
     }
 
     /**
-     * Nur für die öffentliche Galerie: sichtbare Bilder, sortiert wie im Backend.
+     * Nur für die öffentliche Galerie: sichtbare Bilder.
      *
      * @param bool $enforceCategoryPublicity Wenn true (Gast): Medien in privaten Kategorien ausblenden bzw. nur öffentliche Kategorien.
+     * @param 'manual'|'exif_date' $sort manual = sort_order wie Backend; exif_date = Aufnahmezeit aus exif_json (MySQL JSON), ohne EXIF am Ende
      *
      * @return list<Media>
      */
-    public function listPublicVisible(int $limit = 300, int $offset = 0, ?int $categoryId = null, bool $enforceCategoryPublicity = true): array
-    {
+    public function listPublicVisible(
+        int $limit = 300,
+        int $offset = 0,
+        ?int $categoryId = null,
+        bool $enforceCategoryPublicity = true,
+        string $sort = 'manual'
+    ): array {
         $limit = max(1, min($limit, 500));
         $offset = max(0, $offset);
+        $sort = $sort === 'exif_date' ? 'exif_date' : 'manual';
 
         if (! $enforceCategoryPublicity) {
+            $order = self::sqlOrderPublicVisible($sort, false);
             if ($categoryId === null) {
                 $rows = $this->database->fetchAll(
                     'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
                      FROM media WHERE is_visible = 1
-                     ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                     ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                     [$limit, $offset]
                 );
             } else {
                 $rows = $this->database->fetchAll(
                     'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
                      FROM media WHERE is_visible = 1 AND category_id = ?
-                     ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?',
+                     ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                     [$categoryId, $limit, $offset]
                 );
             }
         } elseif ($categoryId === null) {
+            $order = self::sqlOrderPublicVisible($sort, true);
             $rows = $this->database->fetchAll(
                 'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
                  FROM media m
@@ -157,16 +166,17 @@ final class MediaRepository
                          SELECT 1 FROM categories c WHERE c.id = m.category_id AND c.is_public = 1
                      )
                  )
-                 ORDER BY m.sort_order DESC, m.id DESC LIMIT ? OFFSET ?',
+                 ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                 [$limit, $offset]
             );
         } else {
+            $order = self::sqlOrderPublicVisible($sort, true);
             $rows = $this->database->fetchAll(
                 'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
                  FROM media m
                  INNER JOIN categories c ON c.id = m.category_id AND c.is_public = 1
                  WHERE m.is_visible = 1 AND m.category_id = ?
-                 ORDER BY m.sort_order DESC, m.id DESC LIMIT ? OFFSET ?',
+                 ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                 [$categoryId, $limit, $offset]
             );
         }
@@ -177,6 +187,27 @@ final class MediaRepository
         }
 
         return $out;
+    }
+
+    /**
+     * @param 'manual'|'exif_date' $sort
+     */
+    private static function sqlOrderPublicVisible(string $sort, bool $aliasM): string
+    {
+        if ($sort !== 'exif_date') {
+            return $aliasM
+                ? 'm.sort_order DESC, m.id DESC'
+                : 'sort_order DESC, id DESC';
+        }
+
+        $p = $aliasM ? 'm.' : '';
+        $exifTs = 'COALESCE('
+            . 'STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(' . $p . 'exif_json, \'$.EXIF.DateTimeOriginal\')), \'%Y:%m:%d %H:%i:%s\'), '
+            . 'STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(' . $p . 'exif_json, \'$.IFD0.DateTime\')), \'%Y:%m:%d %H:%i:%s\')'
+            . ')';
+
+        return '((' . $exifTs . ') IS NULL) ASC, ' . $exifTs . ' DESC, '
+            . ($aliasM ? 'm.sort_order DESC, m.id DESC' : 'sort_order DESC, id DESC');
     }
 
     public function nextSortOrder(): int
@@ -278,6 +309,18 @@ final class MediaRepository
             'UPDATE media SET title = ?, updated_at = ? WHERE id = ?',
             [
                 mb_substr($title, 0, 255),
+                (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'),
+                $id,
+            ]
+        );
+    }
+
+    public function updateExifJson(int $id, ?string $exifJson): void
+    {
+        $this->database->execute(
+            'UPDATE media SET exif_json = ?, updated_at = ? WHERE id = ?',
+            [
+                $exifJson,
                 (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'),
                 $id,
             ]

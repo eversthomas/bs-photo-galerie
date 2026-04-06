@@ -32,14 +32,24 @@ declare(strict_types=1);
                     <td class="mono small"><?= htmlspecialchars($c['slug'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= (int) $c['sort_order'] ?></td>
                     <td class="small"><?= ! empty($c['is_public']) ? '<strong>öffentlich</strong>' : '<span class="muted">privat</span>' ?></td>
-                    <td class="small nowrap">
+                    <td class="small">
                         <?php
                         $galUrl = $app->publicUrl('/galerie/kategorie/' . rawurlencode($c['slug']));
                         $diaUrl = $galUrl . '?diashow=1';
+                        $isPublic = ! empty($c['is_public']);
                         ?>
-                        <a href="<?= htmlspecialchars($galUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>
-                        ·
-                        <a href="<?= htmlspecialchars($diaUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Diashow</a>
+                        <div class="category-link-row">
+                            <a href="<?= htmlspecialchars($galUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Galerie</a>
+                            ·
+                            <a href="<?= htmlspecialchars($diaUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Diashow</a>
+                        </div>
+                        <label class="category-url-copy muted small">
+                            <span class="sr-only">Öffentliche Galerie-URL zum Kopieren</span>
+                            <input type="text" readonly class="mono category-url-field" value="<?= htmlspecialchars($galUrl, ENT_QUOTES, 'UTF-8') ?>" onclick="this.select();" title="Klicken zum Markieren, dann Strg/Cmd+C kopieren" aria-label="Öffentliche Galerie-URL">
+                        </label>
+                        <?php if (! $isPublic) : ?>
+                            <p class="small muted" style="margin:0.25rem 0 0">Gäste werden zur Anmeldung weitergeleitet.</p>
+                        <?php endif; ?>
                     </td>
                     <td class="admin-table-actions">
                         <a href="<?= htmlspecialchars($app->url('/admin/categories/' . $c['id'] . '/edit'), ENT_QUOTES, 'UTF-8') ?>">Bearbeiten</a>
