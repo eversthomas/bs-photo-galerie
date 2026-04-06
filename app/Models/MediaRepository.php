@@ -235,19 +235,21 @@ final class MediaRepository
             return;
         }
 
-        $pos = 0;
-        foreach ($idsOrdered as $id) {
-            $id = (int) $id;
-            if ($id < 1) {
-                continue;
+        $this->database->transaction(function () use ($idsOrdered, $n): void {
+            $pos = 0;
+            foreach ($idsOrdered as $id) {
+                $id = (int) $id;
+                if ($id < 1) {
+                    continue;
+                }
+                ++$pos;
+                $sort = ($n - $pos + 1) * 10;
+                $this->database->execute(
+                    'UPDATE media SET sort_order = ?, updated_at = ? WHERE id = ?',
+                    [$sort, (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'), $id]
+                );
             }
-            ++$pos;
-            $sort = ($n - $pos + 1) * 10;
-            $this->database->execute(
-                'UPDATE media SET sort_order = ?, updated_at = ? WHERE id = ?',
-                [$sort, (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'), $id]
-            );
-        }
+        });
     }
 
     public function updateMetadata(

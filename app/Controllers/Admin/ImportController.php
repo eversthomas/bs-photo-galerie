@@ -27,7 +27,7 @@ final class ImportController extends BaseController
                 'ftpConfigured' => $ftp,
                 'categories' => $categories,
                 'user' => $this->app->auth()->user(),
-                'flash' => Flash::pull() ?? [],
+                'flash' => Flash::pull(),
             ],
             'admin/layout'
         );

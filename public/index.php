@@ -34,5 +34,9 @@ try {
     $app = new BSPhotoGalerie\Core\Application($root);
     $app->run();
 } catch (Throwable $e) {
-    BSPhotoGalerie\Core\Application::handleException($e);
+    $method = (string) ($_SERVER['REQUEST_METHOD'] ?? '?');
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $path = parse_url($uri, PHP_URL_PATH);
+    $path = is_string($path) && $path !== '' ? $path : '/';
+    BSPhotoGalerie\Core\Application::handleException($e, $root, $method . ' ' . $path);
 }

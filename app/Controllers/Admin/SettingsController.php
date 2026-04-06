@@ -24,7 +24,7 @@ final class SettingsController extends BaseController
             [
                 'title' => 'Einstellungen',
                 'user' => $this->app->auth()->user(),
-                'flash' => Flash::pull() ?? [],
+                'flash' => Flash::pull(),
                 'slideshowEnabled' => $settings->get('slideshow_enabled', '0') === '1',
                 'slideshowInterval' => (int) $settings->get('slideshow_interval_seconds', '5'),
                 'slideshowIntervalChoices' => self::SLIDESHOW_INTERVALS,

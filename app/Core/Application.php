@@ -6,7 +6,6 @@ namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ConfigRepository;
 use BSPhotoGalerie\Config\ImportSettings;
-use BSPhotoGalerie\Config\MediaSettings;
 use BSPhotoGalerie\Controllers\Admin\CategoryController;
 use BSPhotoGalerie\Controllers\Admin\DashboardController;
 use BSPhotoGalerie\Controllers\Admin\LoginController;
@@ -25,11 +24,11 @@ use BSPhotoGalerie\Models\SettingsRepository;
 use BSPhotoGalerie\Models\UserRepository;
 use BSPhotoGalerie\Services\AuthService;
 use BSPhotoGalerie\Services\Database;
-use BSPhotoGalerie\Services\SchemaPatches;
+use BSPhotoGalerie\Services\Domain\CategoryAdminService;
+use BSPhotoGalerie\Services\Domain\MediaAdminService;
 use BSPhotoGalerie\Services\Import\MediaImportService;
 use BSPhotoGalerie\Services\Media\MediaAssetService;
 use BSPhotoGalerie\Services\Media\MediaUploadService;
-use Intervention\Image\ImageManager;
 use FastRoute\Dispatcher;
 use FastRoute\RouteCollector;
 use RuntimeException;
@@ -38,31 +37,13 @@ use Throwable;
 use function FastRoute\simpleDispatcher;
 
 /**
- * Front-Controller / DI-Light: hält Projektroot, Konfiguration, Request, Dienste.
+ * Front-Controller: Request, Routing, Session; Dienste über {@see Container}.
  */
 final class Application
 {
-    private array $config;
+    private Container $container;
 
     private Request $request;
-
-    private ?Database $database = null;
-
-    private ?UserRepository $userRepository = null;
-
-    private ?AuthService $auth = null;
-
-    private ?MediaRepository $mediaRepository = null;
-
-    private ?CategoryRepository $categoryRepository = null;
-
-    private ?SettingsRepository $settingsRepository = null;
-
-    private ?MediaUploadService $mediaUploadService = null;
-
-    private ?MediaImportService $mediaImportService = null;
-
-    private ?MediaAssetService $mediaAssetService = null;
 
     private ?Dispatcher $dispatcher = null;
 
@@ -70,8 +51,14 @@ final class Application
         private string $projectRoot
     ) {
         $repo = new ConfigRepository();
-        $this->config = $repo->load($this->projectRoot);
+        $config = $repo->load($this->projectRoot);
+        $this->container = new Container($this->projectRoot, $config);
         $this->request = Request::fromGlobals();
+    }
+
+    public function container(): Container
+    {
+        return $this->container;
     }
 
     public function root(): string
@@ -84,7 +71,7 @@ final class Application
      */
     public function config(): array
     {
-        return $this->config;
+        return $this->container->config();
     }
 
     public function request(): Request
@@ -94,105 +81,62 @@ final class Application
 
     public function database(): Database
     {
-        if ($this->database === null) {
-            /** @var array{host:string,port?:int,name:string,user:string,password:string,charset?:string} $db */
-            $db = $this->config['db'];
-            $this->database = Database::connect($db);
-            SchemaPatches::ensure($this->database);
-        }
-
-        return $this->database;
+        return $this->container->database();
     }
 
     public function users(): UserRepository
     {
-        if ($this->userRepository === null) {
-            $this->userRepository = new UserRepository($this->database());
-        }
-
-        return $this->userRepository;
+        return $this->container->users();
     }
 
     public function auth(): AuthService
     {
-        if ($this->auth === null) {
-            $this->auth = new AuthService($this->users());
-        }
-
-        return $this->auth;
+        return $this->container->auth();
     }
 
     public function mediaRepository(): MediaRepository
     {
-        if ($this->mediaRepository === null) {
-            $this->mediaRepository = new MediaRepository($this->database());
-        }
-
-        return $this->mediaRepository;
+        return $this->container->mediaRepository();
     }
 
     public function categoryRepository(): CategoryRepository
     {
-        if ($this->categoryRepository === null) {
-            $this->categoryRepository = new CategoryRepository($this->database());
-        }
-
-        return $this->categoryRepository;
+        return $this->container->categoryRepository();
     }
 
     public function settingsRepository(): SettingsRepository
     {
-        if ($this->settingsRepository === null) {
-            $this->settingsRepository = new SettingsRepository($this->database());
-        }
-
-        return $this->settingsRepository;
+        return $this->container->settingsRepository();
     }
 
     public function mediaUploadService(): MediaUploadService
     {
-        if ($this->mediaUploadService === null) {
-            $settings = MediaSettings::fromAppConfig($this->config);
-            $this->mediaUploadService = new MediaUploadService(
-                $this->projectRoot,
-                $this->mediaRepository(),
-                $settings,
-                ImageManager::gd()
-            );
-        }
-
-        return $this->mediaUploadService;
+        return $this->container->mediaUploadService();
     }
 
     public function importSettings(): ImportSettings
     {
-        return new ImportSettings($this->config);
+        return $this->container->importSettings();
     }
 
     public function mediaImportService(): MediaImportService
     {
-        if ($this->mediaImportService === null) {
-            $this->mediaImportService = new MediaImportService(
-                $this->projectRoot,
-                $this->mediaRepository(),
-                $this->mediaUploadService(),
-                $this->importSettings()
-            );
-        }
-
-        return $this->mediaImportService;
+        return $this->container->mediaImportService();
     }
 
     public function mediaAssetService(): MediaAssetService
     {
-        if ($this->mediaAssetService === null) {
-            $this->mediaAssetService = new MediaAssetService(
-                $this->projectRoot,
-                $this->mediaRepository()
-            );
-        }
+        return $this->container->mediaAssetService();
+    }
 
-        return $this->mediaAssetService;
+    public function categoryAdminService(): CategoryAdminService
+    {
+        return $this->container->categoryAdminService();
+    }
+
+    public function mediaAdminService(): MediaAdminService
+    {
+        return $this->container->mediaAdminService();
     }
 
     /**
@@ -260,15 +204,16 @@ final class Application
             return;
         }
 
-        /** @var array{0:int,1:array{0:class-string,1:string},2:array<string,string>} $routeInfo */
-        $handler = $routeInfo[1];
+        /** @var array{0:int,1:array{handler: array{0:class-string,1:string}, auth: string},2:array<string,string>} $routeInfo */
+        $route = $routeInfo[1];
+        $handler = $route['handler'];
         $vars = $routeInfo[2];
 
         if ($this->request->isPost()) {
             (new CsrfMiddleware($this))->validatePost();
         }
 
-        $this->applyAuthPolicy($handler);
+        $this->applyAuthPolicy($route);
 
         $this->invoke($handler, $vars);
     }
@@ -289,21 +234,22 @@ final class Application
     }
 
     /**
-     * @param array{0:class-string,1:string} $handler
+     * @param array{handler: array{0:class-string,1:string}, auth: string} $route
      */
-    private function applyAuthPolicy(array $handler): void
+    private function applyAuthPolicy(array $route): void
     {
-        [$class] = $handler;
+        $auth = $route['auth'];
+        [$class] = $route['handler'];
 
-        if ($class === LoginController::class) {
-            if ($this->auth()->check() && ($this->request->path() === '/admin/login')) {
+        if ($auth === 'login') {
+            if ($class === LoginController::class && $this->auth()->check() && $this->request->path() === '/admin/login') {
                 $this->redirect('/admin');
             }
 
             return;
         }
 
-        if (str_starts_with($class, 'BSPhotoGalerie\\Controllers\\Admin\\')) {
+        if ($auth === 'admin') {
             (new AuthMiddleware($this))->requireUser();
         }
     }
@@ -354,38 +300,40 @@ final class Application
             return $this->dispatcher;
         }
 
-        $this->dispatcher = simpleDispatcher(function (RouteCollector $r): void {
-            $r->addRoute('GET', '/', [HomeController::class, 'index']);
-            $r->addRoute('GET', '/galerie', [GalleryController::class, 'index']);
-            $r->addRoute('GET', '/galerie/kategorie/{slug:[a-zA-Z0-9\\-]+}', [GalleryController::class, 'category']);
-            $r->addRoute('GET', '/thumb/{id:\d+}', [ThumbController::class, 'show']);
-            $r->addRoute('GET', '/admin', [DashboardController::class, 'index']);
-            $r->addGroup('/admin', function (RouteCollector $r): void {
-                $r->addRoute('GET', '/login', [LoginController::class, 'showForm']);
-                $r->addRoute('POST', '/login', [LoginController::class, 'login']);
-                $r->addRoute('POST', '/logout', [DashboardController::class, 'logout']);
-                $r->addRoute('GET', '/categories', [CategoryController::class, 'index']);
-                $r->addRoute('GET', '/categories/create', [CategoryController::class, 'create']);
-                $r->addRoute('POST', '/categories/store', [CategoryController::class, 'store']);
-                $r->addRoute('GET', '/categories/{id:\d+}/edit', [CategoryController::class, 'edit']);
-                $r->addRoute('POST', '/categories/{id:\d+}/update', [CategoryController::class, 'update']);
-                $r->addRoute('POST', '/categories/{id:\d+}/delete', [CategoryController::class, 'delete']);
-                $r->addRoute('GET', '/media', [MediaController::class, 'index']);
-                $r->addRoute('GET', '/media/upload', [MediaController::class, 'uploadForm']);
-                $r->addRoute('POST', '/media/upload', [MediaController::class, 'upload']);
-                $r->addRoute('POST', '/media/reorder', [MediaController::class, 'reorder']);
-                $r->addRoute('POST', '/media/bulk-category', [MediaController::class, 'bulkCategory']);
-                $r->addRoute('POST', '/media/inline-title', [MediaController::class, 'inlineTitle']);
-                $r->addRoute('GET', '/media/{id:\d+}/edit', [MediaController::class, 'edit']);
-                $r->addRoute('POST', '/media/{id:\d+}/update', [MediaController::class, 'update']);
-                $r->addRoute('POST', '/media/{id:\d+}/delete', [MediaController::class, 'destroy']);
-                $r->addRoute('GET', '/import', [ImportController::class, 'index']);
-                $r->addRoute('POST', '/import/run', [ImportController::class, 'run']);
-                $r->addRoute('GET', '/settings', [SettingsController::class, 'index']);
-                $r->addRoute('POST', '/settings/update', [SettingsController::class, 'update']);
-                $r->addRoute('GET', '/update', [UpdateController::class, 'index']);
-                $r->addRoute('POST', '/update/refresh', [UpdateController::class, 'refreshCache']);
-                $r->addRoute('POST', '/update/apply', [UpdateController::class, 'apply']);
+        $R = static fn (string $auth, array $handler): array => ['handler' => $handler, 'auth' => $auth];
+
+        $this->dispatcher = simpleDispatcher(function (RouteCollector $r) use ($R): void {
+            $r->addRoute('GET', '/', $R('public', [HomeController::class, 'index']));
+            $r->addRoute('GET', '/galerie', $R('public', [GalleryController::class, 'index']));
+            $r->addRoute('GET', '/galerie/kategorie/{slug:[a-zA-Z0-9\\-]+}', $R('public', [GalleryController::class, 'category']));
+            $r->addRoute('GET', '/thumb/{id:\d+}', $R('public', [ThumbController::class, 'show']));
+            $r->addRoute('GET', '/admin', $R('admin', [DashboardController::class, 'index']));
+            $r->addGroup('/admin', function (RouteCollector $r) use ($R): void {
+                $r->addRoute('GET', '/login', $R('login', [LoginController::class, 'showForm']));
+                $r->addRoute('POST', '/login', $R('login', [LoginController::class, 'login']));
+                $r->addRoute('POST', '/logout', $R('admin', [DashboardController::class, 'logout']));
+                $r->addRoute('GET', '/categories', $R('admin', [CategoryController::class, 'index']));
+                $r->addRoute('GET', '/categories/create', $R('admin', [CategoryController::class, 'create']));
+                $r->addRoute('POST', '/categories/store', $R('admin', [CategoryController::class, 'store']));
+                $r->addRoute('GET', '/categories/{id:\d+}/edit', $R('admin', [CategoryController::class, 'edit']));
+                $r->addRoute('POST', '/categories/{id:\d+}/update', $R('admin', [CategoryController::class, 'update']));
+                $r->addRoute('POST', '/categories/{id:\d+}/delete', $R('admin', [CategoryController::class, 'delete']));
+                $r->addRoute('GET', '/media', $R('admin', [MediaController::class, 'index']));
+                $r->addRoute('GET', '/media/upload', $R('admin', [MediaController::class, 'uploadForm']));
+                $r->addRoute('POST', '/media/upload', $R('admin', [MediaController::class, 'upload']));
+                $r->addRoute('POST', '/media/reorder', $R('admin', [MediaController::class, 'reorder']));
+                $r->addRoute('POST', '/media/bulk-category', $R('admin', [MediaController::class, 'bulkCategory']));
+                $r->addRoute('POST', '/media/inline-title', $R('admin', [MediaController::class, 'inlineTitle']));
+                $r->addRoute('GET', '/media/{id:\d+}/edit', $R('admin', [MediaController::class, 'edit']));
+                $r->addRoute('POST', '/media/{id:\d+}/update', $R('admin', [MediaController::class, 'update']));
+                $r->addRoute('POST', '/media/{id:\d+}/delete', $R('admin', [MediaController::class, 'destroy']));
+                $r->addRoute('GET', '/import', $R('admin', [ImportController::class, 'index']));
+                $r->addRoute('POST', '/import/run', $R('admin', [ImportController::class, 'run']));
+                $r->addRoute('GET', '/settings', $R('admin', [SettingsController::class, 'index']));
+                $r->addRoute('POST', '/settings/update', $R('admin', [SettingsController::class, 'update']));
+                $r->addRoute('GET', '/update', $R('admin', [UpdateController::class, 'index']));
+                $r->addRoute('POST', '/update/refresh', $R('admin', [UpdateController::class, 'refreshCache']));
+                $r->addRoute('POST', '/update/apply', $R('admin', [UpdateController::class, 'apply']));
             });
         });
 
@@ -393,12 +341,55 @@ final class Application
     }
 
     /**
-     * Globale Fehlerbehandlung für den Front-Controller (optional).
+     * Globale Fehlerbehandlung für den Front-Controller.
+     *
+     * @param string|null $projectRoot Projektroot für Logdatei unter storage/logs/; null nur file-less error_log.
+     * @param string|null $requestSummary z. B. "GET /galerie" für Zuordnung.
      */
-    public static function handleException(Throwable $e): void
+    public static function handleException(Throwable $e, ?string $projectRoot = null, ?string $requestSummary = null): void
     {
+        if ($projectRoot !== null && $projectRoot !== '') {
+            ExceptionLogger::logThrowable($projectRoot, $e, $requestSummary);
+        } else {
+            error_log(
+                '[BSPHOTO] '
+                . $e::class
+                . ': '
+                . $e->getMessage()
+                . ' in '
+                . $e->getFile()
+                . ':'
+                . (string) $e->getLine()
+            );
+        }
+
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
+
+        if (self::exceptionDebugEnabled()) {
+            echo '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Fehler (Debug)</title></head><body>';
+            echo '<h1>Interner Fehler</h1>';
+            echo '<pre>'
+                . htmlspecialchars(
+                    $e::class . ': ' . $e->getMessage() . "\n\n" . $e->getTraceAsString(),
+                    ENT_QUOTES,
+                    'UTF-8'
+                )
+                . '</pre></body></html>';
+
+            return;
+        }
+
         echo '<p>Interner Fehler.</p>';
+    }
+
+    private static function exceptionDebugEnabled(): bool
+    {
+        $raw = $_ENV['APP_DEBUG'] ?? getenv('APP_DEBUG');
+        if ($raw === false || $raw === null || $raw === '') {
+            return false;
+        }
+
+        return in_array(strtolower(trim((string) $raw)), ['1', 'true', 'yes', 'on'], true);
     }
 }

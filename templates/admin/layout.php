@@ -7,7 +7,7 @@ declare(strict_types=1);
 /** @var string $title */
 /** @var string $csrfToken */
 /** @var \BSPhotoGalerie\Models\User|null $user */
-/** @var array{type?:string,message?:string} $flash */
+/** @var list<array{type:string,message:string}> $flash */
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -43,11 +43,17 @@ declare(strict_types=1);
     <?php endif; ?>
 </header>
 <div class="admin-wrap">
-    <?php if (isset($flash['message']) && is_string($flash['message']) && $flash['message'] !== '') : ?>
-        <div class="flash flash-<?= htmlspecialchars((string) ($flash['type'] ?? 'info'), ENT_QUOTES, 'UTF-8') ?>" role="status">
-            <?= htmlspecialchars($flash['message'], ENT_QUOTES, 'UTF-8') ?>
+    <?php foreach ($flash as $flashItem) : ?>
+        <?php
+        if (! is_array($flashItem) || ! isset($flashItem['message']) || ! is_string($flashItem['message']) || $flashItem['message'] === '') {
+            continue;
+        }
+        $flashType = isset($flashItem['type']) && is_string($flashItem['type']) ? $flashItem['type'] : 'info';
+        ?>
+        <div class="flash flash-<?= htmlspecialchars($flashType, ENT_QUOTES, 'UTF-8') ?>" role="status">
+            <?= htmlspecialchars($flashItem['message'], ENT_QUOTES, 'UTF-8') ?>
         </div>
-    <?php endif; ?>
+    <?php endforeach; ?>
     <?= $content ?>
 </div>
 </body>

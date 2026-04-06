@@ -41,7 +41,7 @@ final class UpdateController extends BaseController
             [
                 'title' => 'Software-Update',
                 'user' => $this->app->auth()->user(),
-                'flash' => Flash::pull() ?? [],
+                'flash' => Flash::pull(),
                 'localVersion' => $local,
                 'remote' => $remote,
                 'remoteError' => $check['error'],

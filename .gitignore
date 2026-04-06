@@ -4,6 +4,8 @@
 /storage/locks/install.lock
 /storage/cache/*
 !/storage/cache/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
 /storage/thumbnails/*
 !/storage/thumbnails/.gitkeep
 /public/uploads/*

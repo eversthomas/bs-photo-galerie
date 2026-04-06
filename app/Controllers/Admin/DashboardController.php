@@ -22,7 +22,7 @@ final class DashboardController extends BaseController
             [
                 'title' => $title,
                 'user' => $user,
-                'flash' => Flash::pull() ?? [],
+                'flash' => Flash::pull(),
             ],
             'admin/layout'
         );

@@ -20,7 +20,7 @@ final class LoginController extends BaseController
         $this->render(
             'admin/login',
             [
-                'flash' => Flash::pull() ?? [],
+                'flash' => Flash::pull(),
                 'title' => 'Anmeldung',
                 'redirectAfterLogin' => $redirect,
             ],
