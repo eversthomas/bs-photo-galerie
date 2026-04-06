@@ -9,7 +9,8 @@ use RuntimeException;
 /**
  * Aktualisiert die Installation aus dem offiziellen GitHub-ZIP-Archiv (ohne .git).
  *
- * Überschreibt Projektdateien, behält config/.env, config/config.php, storage/ und public/uploads/.
+ * Überschreibt Projektdateien (app, templates, public, composer.json …), behält u. a. config/.env,
+ * config/config.php, storage/, public/uploads/ und vendor/. composer install nur optional, falls auf dem Server verfügbar.
  */
 final class ZipReleaseUpdater
 {
@@ -55,9 +56,6 @@ final class ZipReleaseUpdater
         if (! self::hasZipExtension()) {
             return ['ok' => false, 'log' => ['PHP-Erweiterung zip (ZipArchive) fehlt.']];
         }
-        if (! $this->canRunShell()) {
-            return ['ok' => false, 'log' => ['proc_open ist nicht verfügbar (composer install nach dem Entpacken).']];
-        }
 
         $this->assertTrustedZipUrl($zipUrl);
 
@@ -98,11 +96,7 @@ final class ZipReleaseUpdater
 
             $this->mirrorIntoProject($sourceRoot, $root, $log);
 
-            $composer = $this->runComposerInstall($root);
-            $log = array_merge($log, $composer['lines']);
-            if (! $composer['ok']) {
-                return ['ok' => false, 'log' => $log];
-            }
+            $this->runComposerOptional($root, $log);
 
             if (function_exists('opcache_reset')) {
                 @opcache_reset();
@@ -119,6 +113,28 @@ final class ZipReleaseUpdater
         }
 
         return ['ok' => true, 'log' => $log];
+    }
+
+    /**
+     * @param list<string> $log
+     */
+    private function runComposerOptional(string $root, array &$log): void
+    {
+        if (! $this->canRunShell()) {
+            $log[] = 'Hinweis: composer install übersprungen (proc_open nicht verfügbar). Ordner vendor/ bleibt unverändert.';
+
+            return;
+        }
+
+        $composer = $this->runComposerInstall($root);
+        if ($composer['lines'] !== []) {
+            $log = array_merge($log, $composer['lines']);
+        }
+        if ($composer['ok']) {
+            $log[] = 'composer install ausgeführt.';
+        } else {
+            $log[] = 'Hinweis: composer nicht gefunden oder fehlgeschlagen — vendor/ wurde nicht aktualisiert. Das GitHub-ZIP enthält kein vendor/; bei neuen Abhängigkeiten lokal „composer install“ ausführen und vendor/ auf den Server legen.';
+        }
     }
 
     private function assertTrustedZipUrl(string $url): void
@@ -244,6 +260,7 @@ final class ZipReleaseUpdater
         $excludePrefixes = [
             'storage/',
             'public/uploads/',
+            'vendor/',
         ];
 
         $iterator = new \RecursiveIteratorIterator(
@@ -295,7 +312,7 @@ final class ZipReleaseUpdater
             @chmod($target, 0644);
         }
 
-        $log[] = 'Dateien aus Archiv übernommen (ohne config/.env, config/config.php, storage/, public/uploads/).';
+        $log[] = 'Dateien aus Archiv übernommen (ohne config/.env, config/config.php, storage/, public/uploads/, vendor/).';
     }
 
     private static function removeDir(string $dir): void

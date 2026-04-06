@@ -37,7 +37,7 @@ $canGitUpdate = $webUpdateAllowed && $hasGitDir && $canShell && $remote !== null
         <a href="<?= htmlspecialchars($repoUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">eversthomas/bs-photo-galerie</a>.
         Es wird zuerst ein Release, dann ein semver-Tag, sonst die <code class="mono">VERSION</code>-Datei auf dem Standard-Branch gelesen. Der Check nutzt die GitHub-API (Cache ca. 10&nbsp;Min.). Optional: <code>config/.env</code> <code>GITHUB_API_TOKEN=…</code>.</p>
 
-    <p class="small muted"><strong>Update aus der Verwaltung:</strong> Ohne <code class="mono">.git</code> lädt die Software das <strong>offizielle GitHub-ZIP</strong> und ersetzt Projektdateien (Konfiguration und Uploads bleiben erhalten). Mit Git-Klon weiterhin <strong>Git + Checkout</strong>. Freischaltung: <code class="mono">BSPHOTO_ALLOW_WEB_UPDATE=1</code> oder die bisherige <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code class="mono">config/.env</code> — nur setzen, wenn Sie die Risiken (Schreibzugriff auf den Code) bewusst eingehen.</p>
+    <p class="small muted"><strong>Update aus der Verwaltung:</strong> Ohne <code class="mono">.git</code> lädt die Software das <strong>offizielle GitHub-ZIP</strong> und ersetzt die Anwendungsdateien (Konfiguration, Uploads und <code class="mono">vendor/</code> auf dem Server bleiben erhalten; Composer ist dafür nicht nötig). Mit Git-Klon weiterhin <strong>Git + Checkout</strong>. Freischaltung: <code class="mono">BSPHOTO_ALLOW_WEB_UPDATE=1</code> oder die bisherige <code class="mono">BSPHOTO_ALLOW_GIT_UPDATE=1</code> in <code class="mono">config/.env</code> — nur setzen, wenn Sie die Risiken (Schreibzugriff auf den Code) bewusst eingehen.</p>
 
     <form method="post" action="<?= htmlspecialchars($app->url('/admin/update/refresh'), ENT_QUOTES, 'UTF-8') ?>" class="admin-form update-refresh-form">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
@@ -108,7 +108,7 @@ $canGitUpdate = $webUpdateAllowed && $hasGitDir && $canShell && $remote !== null
     <ul class="small muted update-checklist">
         <li>Web-Update freigeschaltet: <?= $webUpdateAllowed ? '<strong>ja</strong>' : '<strong>nein</strong>' ?> (siehe <code class="mono">.env</code>)</li>
         <li>Git-Arbeitsverzeichnis (<code class="mono">.git</code>): <?= $hasGitDir ? '<strong>ja</strong> — optional Git-Update' : '<strong>nein</strong> — ZIP-Update' ?></li>
-        <li>PHP <code>proc_open</code> (für <code>composer install</code>): <?= $canShell ? '<strong>verfügbar</strong>' : '<strong>gesperrt</strong>' ?></li>
+        <li>PHP <code>proc_open</code> (nur für optionales <code>composer install</code> nach ZIP oder für Git-Update): <?= $canShell ? '<strong>verfügbar</strong>' : '<strong>gesperrt</strong> — ZIP-Update der Anwendungsdateien funktioniert trotzdem' ?></li>
         <li>PHP-Erweiterung <code>zip</code> (ZipArchive): <?= $hasZipExtension ? '<strong>ja</strong>' : '<strong>nein</strong> (ZIP-Update nicht möglich)' ?></li>
     </ul>
 
@@ -116,7 +116,7 @@ $canGitUpdate = $webUpdateAllowed && $hasGitDir && $canShell && $remote !== null
     $zipConfirm = '';
     $gitConfirm = '';
     if ($remote !== null) {
-        $zipConfirm = 'Wirklich per GitHub-ZIP auf ' . $remote['tag'] . ' aktualisieren? Ihre Dateien config/.env, config/config.php, storage/ und public/uploads/ bleiben erhalten. Vorher Backup (Dateien + Datenbank).';
+        $zipConfirm = 'Wirklich per GitHub-ZIP auf ' . $remote['tag'] . ' aktualisieren? Es werden die Anwendungsdateien aus dem Archiv übernommen; config/.env, config/config.php, storage/, public/uploads/ und vendor/ auf dem Server bleiben unverändert. Vorher Backup (Dateien + Datenbank).';
         $gitConfirm = $remote['git_mode'] === 'branch'
             ? 'Wirklich per Git Branch „' . $remote['git_ref'] . '“ (Version ' . $remote['tag'] . ') aktualisieren? Lokale Code-Änderungen gehen verloren.'
             : 'Wirklich per Git auf ' . $remote['tag'] . ' aktualisieren? Lokale Code-Änderungen gehen verloren.';
@@ -125,7 +125,7 @@ $canGitUpdate = $webUpdateAllowed && $hasGitDir && $canShell && $remote !== null
 
     <?php if ($remote !== null && $updateAvailable && $canZipUpdate) : ?>
         <h3 class="update-section-title" style="font-size: 1rem; margin-top: 1.25rem;">Per GitHub-ZIP (empfohlen ohne .git)</h3>
-        <p class="small muted">Lädt das Archiv von GitHub, entpackt und überschreibt Projektdateien, führt <code class="mono">composer install</code> aus. Geschützt bleiben: <code class="mono">config/.env</code>, <code class="mono">config/config.php</code>, der Ordner <code class="mono">storage/</code> und <code class="mono">public/uploads/</code>.</p>
+        <p class="small muted">Lädt das Archiv von GitHub (ohne <code class="mono">vendor/</code>) und kopiert u. a. <code class="mono">app/</code>, <code class="mono">templates/</code>, <code class="mono">public/</code> (ohne Uploads), <code class="mono">composer.json</code>. Unverändert bleiben: <code class="mono">config/.env</code>, <code class="mono">config/config.php</code>, <code class="mono">storage/</code>, <code class="mono">public/uploads/</code>, <code class="mono">vendor/</code>. Wenn auf dem Server <code class="mono">composer</code> verfügbar ist, wird optional danach <code class="mono">composer install</code> versucht — sonst bleibt Ihre bestehende <code class="mono">vendor/</code> liegen (für die meisten Updates ausreichend).</p>
         <form method="post" action="<?= htmlspecialchars($app->url('/admin/update/apply'), ENT_QUOTES, 'UTF-8') ?>" class="admin-form wide update-apply-form" onsubmit="return confirm(<?= json_encode($zipConfirm, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>);">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="channel" value="zip">
@@ -140,10 +140,7 @@ $canGitUpdate = $webUpdateAllowed && $hasGitDir && $canShell && $remote !== null
         </form>
     <?php elseif ($remote !== null && $updateAvailable && $webUpdateAllowed && ! $canZipUpdate) : ?>
         <div class="flash flash-info" role="status">
-            <p><strong>ZIP-Update nicht möglich.</strong>
-                <?php if (! $hasZipExtension) : ?>PHP-Erweiterung <code class="mono">zip</code> fehlt (ZipArchive).<?php endif; ?>
-                <?php if (! $canShell) : ?> <code class="mono">proc_open</code> ist gesperrt.<?php endif; ?>
-            </p>
+            <p><strong>ZIP-Update nicht möglich:</strong> PHP-Erweiterung <code class="mono">zip</code> (ZipArchive) fehlt.</p>
         </div>
     <?php endif; ?>
 

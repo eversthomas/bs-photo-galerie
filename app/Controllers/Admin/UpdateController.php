@@ -53,7 +53,7 @@ final class UpdateController extends BaseController
                 'gitAllowed' => $webOk,
                 'hasGitDir' => $git->isGitWorkingCopy(),
                 'canShell' => $git->canRunShell(),
-                'canZipUpdate' => $webOk && ZipReleaseUpdater::hasZipExtension() && $zip->canRunShell(),
+                'canZipUpdate' => $webOk && ZipReleaseUpdater::hasZipExtension(),
             ],
             'admin/layout'
         );
@@ -148,24 +148,26 @@ final class UpdateController extends BaseController
 
                 return;
             }
-            $zipUpdater = new ZipReleaseUpdater($root);
-            if (! ZipReleaseUpdater::hasZipExtension() || ! $zipUpdater->canRunShell()) {
-                Flash::set('error', 'ZIP-Update nicht möglich (PHP zip oder proc_open fehlt).');
+            if (! ZipReleaseUpdater::hasZipExtension()) {
+                Flash::set('error', 'ZIP-Update nicht möglich: PHP-Erweiterung zip (ZipArchive) fehlt.');
                 $this->app->redirect('/admin/update');
 
                 return;
             }
-            $result = $zipUpdater->run($remote['zipball_url']);
+            $result = (new ZipReleaseUpdater($root))->run($remote['zipball_url']);
         } else {
             $result = $git->run($remote['git_ref'], $remote['git_mode']);
         }
 
         if ($result['ok']) {
             $newLocal = AppVersion::readFromProjectRoot($root);
-            Flash::set(
-                'success',
-                'Update ausgeführt. Datei VERSION zeigt nun: ' . $newLocal . '. Bei Problemen prüfen Sie die Server-Logs oder führen Sie composer install manuell aus.'
-            );
+            $msg = 'Update ausgeführt. Datei VERSION: ' . $newLocal . '.';
+            if ($channel === 'zip') {
+                $msg .= ' Ohne Composer auf dem Server bleibt der Ordner vendor/ unverändert (normal für viele Releases). Wenn composer.json/composer.lock neue Pakete verlangen, lokal composer install ausführen und vendor/ hochladen.';
+            } else {
+                $msg .= ' Bei Problemen prüfen Sie die Server-Logs.';
+            }
+            Flash::set('success', $msg);
         } else {
             Flash::set('error', 'Update fehlgeschlagen: ' . implode('; ', array_slice($result['log'], 0, 12)));
         }
