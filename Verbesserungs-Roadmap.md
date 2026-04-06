@@ -34,6 +34,7 @@
 ### Phase 1 – Quick Wins (geringes Risiko, hoher Nutzen)
 
 #### 1.1 Git-Update: Composer-Ergebnis von „Gesamtfehler“ trennen
+> **Erledigt**
 - **Beschreibung:** Analog zum ZIP-Updater soll ein fehlgeschlagener `composer install` nach erfolgreichem Git-Schritt **nicht** mehr `ok: false` für den gesamten Vorgang erzwingen, sondern als **Warnung/Hinweis** in `log` landen und `ok: true` mit klarer Admin-Meldung (oder separates Flag `composer_ok` in der Response-Struktur).
 - **Betroffene Dateien/Klassen:** `app/Services/Update/GitApplicationUpdater.php` (Zeilen 128–132), `app/Controllers/Admin/UpdateController.php` (Flash-Text bei Erfolg/Warnung, Zeilen 162–173).
 - **Zielbild:** Administratoren sehen **„Update durchgeführt; Composer bitte manuell / vendor hochladen“** statt irreführendem „Update fehlgeschlagen“ bei bereits gepulltem Code.
@@ -42,18 +43,21 @@
 - **Impact:** high
 
 #### 1.2 Veraltete Fehlermeldung in Git-Updater an `WebUpdatePolicy` anpassen
+> **Erledigt**
 - **Beschreibung:** `GitApplicationUpdater::run()` meldet bei deaktiviertem Update noch `BSPHOTO_ALLOW_GIT_UPDATE` (`app/Services/Update/GitApplicationUpdater.php` Zeilen 52–54), während `WebUpdatePolicy::isWebUpdateAllowed()` mehrere Variablen prüft (`BSPHOTO_ALLOW_WEB_UPDATE`, `BSPHOTO_ALLOW_GIT_UPDATE`, `BSPHOTO_ALLOW_ZIP_UPDATE` – `app/Services/Update/WebUpdatePolicy.php` Zeilen 19–27).
 - **Zielbild:** Einheitliche, korrekte Hinweiszeile in Fehlermeldungen.
 - **Risiko:** low  
 - **Impact:** low (UX/Dokumentation im Fehlerfall)
 
 #### 1.3 500-Fehler: Mindest-Logging in `handleException`
+> **Erledigt**
 - **Beschreibung:** In `Application::handleException()` Exception in PHP `error_log` oder dateibasiertes Log unter `storage/logs/` schreiben (ohne Passwörter); optional `APP_DEBUG` aus `.env` für detaillierte Ausgabe **nur** in Entwicklung.
 - **Betroffene Dateien:** `app/Core/Application.php`, `public/index.php` (nur falls Konfig durchgereicht), ggf. neue winzige `Logger`-Hilfsklasse.
 - **Risiko:** low  
 - **Impact:** medium
 
 #### 1.4 Security Header ergänzen (optional CSP Report-Only)
+> **Erledigt**
 - **Beschreibung:** `SecurityHeaders::sendForApp()` (`app/Core/SecurityHeaders.php`) um sinnvolle Defaults erweitern, z. B. `Content-Security-Policy: report-only` für Admin/Public getrennt evaluieren.
 - **Risiko:** low bis medium (CSP kann Inline-Skripte brechen – deshalb phased/report-only).
 - **Impact:** medium
@@ -63,6 +67,7 @@
 ### Phase 2 – Strukturverbesserungen
 
 #### 2.1 Einfachen DI-Container neben bestehender `Application` einführen (Wrapper)
+> **Erledigt**
 - **Beschreibung:** Registrierung von Factories für `Database`, Repositories, Services; `Application` delegiert Getter an Container oder wird schrittweise zum dünnen Fassade.
 - **Betroffene Dateien:** Neu z. B. `app/Core/Container.php` (oder `Infrastructure`), Refactor in `Application.php` in kleinen Schritten.
 - **Zielbild:** Eine Stelle für Lebenszyklus und spätere Mockbarkeit ohne alle Aufrufer zu ändern.
@@ -70,23 +75,27 @@
 - **Impact:** high
 
 #### 2.2 Route-Metadaten für Auth (und optional CSRF)
+> **Erledigt**
 - **Beschreibung:** Handlers als `['handler' => [Class::class, 'method'], 'auth' => true]` oder globale Defaults + Ausnahmen statt `str_starts_with` auf Namespace.
 - **Betroffene Dateien:** `app/Core/Application.php` (`router()`, `applyAuthPolicy()`).
 - **Risiko:** medium  
 - **Impact:** medium
 
 #### 2.3 Service-Layer pro Domäne formalisieren
+> **Erledigt**
 - **Beschreibung:** Z. B. `CategoryService`, `MediaAdminService`, die Controller-Validierung und Orchestrierung bündeln; Repositories bleiben dünn.
 - **Betroffene Dateien:** `app/Controllers/Admin/*.php`, neu unter `app/Services/Domain/` oder bestehende `Services/` erweitern.
 - **Risiko:** medium  
 - **Impact:** medium
 
 #### 2.4 `Database::transaction()` für mehrstufige Schreiboperationen nutzen
+> **Erledigt**
 - **Beschreibung:** Kandidaten identifizieren (Bulk-Operationen in `MediaController`, Import-Services), kritische Abschnitte in `$db->transaction(...)` wrappen.
 - **Risiko:** medium (Deadlocks, Länge der Transaktion beachten)  
 - **Impact:** medium
 
 #### 2.5 Flash zu Queue oder strukturierten Messages erweitern
+> **Erledigt**
 - **Beschreibung:** Mehrere Flash-Einträge oder Typ+Liste für Partial Success (vgl. Upload-Feedback in `MediaController::upload()` Zeilen 76–87 – dort wird bereits in einer Message konsolidiert).
 - **Risiko:** low  
 - **Impact:** low–medium
@@ -96,19 +105,23 @@
 ### Phase 3 – Tiefgreifende Refactorings
 
 #### 3.1 Controller mit echter Constructor-Injection
+> **Erledigt**
 - **Beschreibung:** Router/Dispatcher übergibt nicht `Application`, sondern von Container aufgelöste Abhängigkeiten (oder ein schmales `RequestContext`-Objekt).
 - **Betroffene Dateien:** Alle `app/Controllers/**/*.php`, `Application::invoke()`.
 - **Risiko:** high  
 - **Impact:** high (Testbarkeit, klare Grenzen)
 
 #### 3.2 Domain-Logik und „Use Cases“
+> **Erledigt**
 - **Beschreibung:** Explizite Application Services pro Anwendungsfall (Update anwenden, Medium veröffentlichen, Import starten), Repositories nur Persistenz.
 - **Risiko:** high  
 - **Impact:** high bei langfristiger Evolution
 
 #### 3.3 Event-System (optional)
+> **Erledigt**
 - **Beschreibung:** Nachrichten wie `MediaUploaded`, `AfterZipUpdate` für Erweiterungen (z. B. externe Suchindexe).
-- **Ist-Zustand:** Kein Event-Bus im Code sichtbar – optionaler Baustein.
+- **Umsetzung:** Synchroner `BSPhotoGalerie\Events\EventDispatcher` (Singleton über `Container` / `Application::eventDispatcher()`). Events: `MediaUploadedEvent` (nach DB + Thumbnail in `MediaUploadService`), `AfterZipUpdateEvent` / `AfterGitUpdateAppliedEvent` (nach erfolgreichem Admin-Update in `UpdateApplyService`). Listener können optional in `config/event_listeners.php` registriert werden — Datei muss ein **callable** zurückgeben: `function (\BSPhotoGalerie\Events\EventDispatcher $bus): void { $bus->listen(...); }`. Fehler in Listenern werden per `error_log` protokolliert und brechen den Hauptablauf nicht ab.
+- **Ist-Zustand:** *(vorher)* Kein Event-Bus im Code sichtbar – optionaler Baustein.
 - **Risiko:** medium–high  
 - **Impact:** low bis medium (abhängig von Produkt roadmap)
 
@@ -257,7 +270,8 @@ Erweiterbar um Monolog o. Ä., ohne Framework-Zwang.
 | Bereich | Pfad |
 |---------|------|
 | Front Controller | `public/index.php`, `index.php` |
-| App-Kern | `app/Core/Application.php`, `Request.php`, `SecurityHeaders.php`, `CsrfToken.php`, `Flash.php` |
+| App-Kern | `app/Core/Application.php`, `Container.php`, `Request.php`, `SecurityHeaders.php`, `CsrfToken.php`, `Flash.php` |
+| Events (Erweiterungen) | `app/Events/*.php`, optional `config/event_listeners.php` |
 | Datenbank | `app/Services/Database.php` |
 | Auth / CSRF Middleware | `app/Middleware/AuthMiddleware.php`, `CsrfMiddleware.php`, `app/Services/AuthService.php` |
 | Upload | `app/Services/Media/MediaUploadService.php`, `UploadedFiles.php` |

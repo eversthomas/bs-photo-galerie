@@ -16,6 +16,7 @@ use BSPhotoGalerie\Controllers\Admin\UpdateController;
 use BSPhotoGalerie\Controllers\GalleryController;
 use BSPhotoGalerie\Controllers\HomeController;
 use BSPhotoGalerie\Controllers\ThumbController;
+use BSPhotoGalerie\Events\EventDispatcher;
 use BSPhotoGalerie\Middleware\AuthMiddleware;
 use BSPhotoGalerie\Middleware\CsrfMiddleware;
 use BSPhotoGalerie\Models\CategoryRepository;
@@ -58,6 +59,24 @@ final class Application
         $config = $repo->load($this->projectRoot);
         $this->container = new Container($this->projectRoot, $config);
         $this->request = Request::fromGlobals();
+        $this->loadOptionalEventListeners();
+    }
+
+    /**
+     * Optional: config/event_listeners.php liefert eine callable(EventDispatcher): void.
+     */
+    private function loadOptionalEventListeners(): void
+    {
+        $file = $this->projectRoot . '/config/event_listeners.php';
+        if (! is_file($file)) {
+            return;
+        }
+
+        /** @var mixed $register */
+        $register = require $file;
+        if (is_callable($register)) {
+            $register($this->container->eventDispatcher());
+        }
     }
 
     public function container(): Container
@@ -161,6 +180,11 @@ final class Application
     public function mediaItemApplicationService(): MediaItemApplicationService
     {
         return $this->container->mediaItemApplicationService();
+    }
+
+    public function eventDispatcher(): EventDispatcher
+    {
+        return $this->container->eventDispatcher();
     }
 
     public function run(): void

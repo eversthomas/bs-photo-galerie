@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Services\Media;
 
 use BSPhotoGalerie\Config\MediaSettings;
+use BSPhotoGalerie\Events\EventDispatcher;
+use BSPhotoGalerie\Events\MediaUploadedEvent;
 use BSPhotoGalerie\Models\MediaRepository;
 use Intervention\Image\ImageManager;
 use RuntimeException;
@@ -18,7 +20,8 @@ final class MediaUploadService
         private string $projectRoot,
         private MediaRepository $mediaRepository,
         private MediaSettings $settings,
-        private ImageManager $imageManager
+        private ImageManager $imageManager,
+        private EventDispatcher $events
     ) {
     }
 
@@ -269,6 +272,10 @@ final class MediaUploadService
             @unlink($thumbPath);
             throw new RuntimeException('Vorschaubild konnte nicht erzeugt werden.', 0, $e);
         }
+
+        $this->events->dispatch(
+            new MediaUploadedEvent($mediaId, $relativePath, $categoryId)
+        );
     }
 
     /**

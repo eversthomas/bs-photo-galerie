@@ -6,6 +6,7 @@ namespace BSPhotoGalerie\Core;
 
 use BSPhotoGalerie\Config\ImportSettings;
 use BSPhotoGalerie\Config\MediaSettings;
+use BSPhotoGalerie\Events\EventDispatcher;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionParameter;
@@ -63,6 +64,8 @@ final class Container
     private ?ImportRunService $importRunService = null;
 
     private ?MediaItemApplicationService $mediaItemApplicationService = null;
+
+    private ?EventDispatcher $eventDispatcher = null;
 
     /**
      * @param array<string, mixed> $config
@@ -151,7 +154,8 @@ final class Container
                 $this->projectRoot,
                 $this->mediaRepository(),
                 $settings,
-                ImageManager::gd()
+                ImageManager::gd(),
+                $this->eventDispatcher()
             );
         }
 
@@ -213,7 +217,10 @@ final class Container
     public function updateApplyService(): UpdateApplyService
     {
         if ($this->updateApplyService === null) {
-            $this->updateApplyService = new UpdateApplyService($this->projectRoot);
+            $this->updateApplyService = new UpdateApplyService(
+                $this->projectRoot,
+                $this->eventDispatcher()
+            );
         }
 
         return $this->updateApplyService;
@@ -252,6 +259,15 @@ final class Container
         }
 
         return $this->mediaItemApplicationService;
+    }
+
+    public function eventDispatcher(): EventDispatcher
+    {
+        if ($this->eventDispatcher === null) {
+            $this->eventDispatcher = new EventDispatcher();
+        }
+
+        return $this->eventDispatcher;
     }
 
     /**
@@ -320,6 +336,7 @@ final class Container
             SettingsUpdateService::class => $this->settingsUpdateService(),
             ImportRunService::class => $this->importRunService(),
             MediaItemApplicationService::class => $this->mediaItemApplicationService(),
+            EventDispatcher::class => $this->eventDispatcher(),
             default => throw new RuntimeException('Unbekannte Abhängigkeit: ' . $name . ' (' . $param->getName() . ').'),
         };
     }

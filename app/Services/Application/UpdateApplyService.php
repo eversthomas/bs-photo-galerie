@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Services\Application;
 
 use BSPhotoGalerie\Core\Request;
+use BSPhotoGalerie\Events\AfterGitUpdateAppliedEvent;
+use BSPhotoGalerie\Events\AfterZipUpdateEvent;
+use BSPhotoGalerie\Events\EventDispatcher;
 use BSPhotoGalerie\Services\Update\AppVersion;
 use BSPhotoGalerie\Services\Update\GithubReleaseClient;
 use BSPhotoGalerie\Services\Update\GitApplicationUpdater;
@@ -17,7 +20,8 @@ use BSPhotoGalerie\Services\Update\ZipReleaseUpdater;
 final class UpdateApplyService
 {
     public function __construct(
-        private string $projectRoot
+        private string $projectRoot,
+        private EventDispatcher $events
     ) {
     }
 
@@ -112,6 +116,16 @@ final class UpdateApplyService
                 $msg .= ' Der Git-Stand wurde aktualisiert; composer install ist fehlgeschlagen oder war nicht verfügbar — bitte vendor/ ggf. lokal erzeugen und hochladen.';
             } else {
                 $msg .= ' Bei Problemen prüfen Sie die Server-Logs.';
+            }
+
+            if ($channel === 'zip') {
+                $this->events->dispatch(
+                    new AfterZipUpdateEvent($root, $local, $newLocal, $remote['tag'])
+                );
+            } else {
+                $this->events->dispatch(
+                    new AfterGitUpdateAppliedEvent($root, $local, $newLocal, $remote['tag'])
+                );
             }
 
             return new UpdateApplyResult('success', $msg);
