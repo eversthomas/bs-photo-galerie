@@ -62,12 +62,14 @@ CREATE TABLE IF NOT EXISTS media (
     title VARCHAR(255) NOT NULL DEFAULT '',
     description TEXT NULL,
     exif_json LONGTEXT NULL,
+    captured_at DATETIME NULL,
     sort_order INT NOT NULL DEFAULT 0,
     is_visible TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NULL,
     KEY idx_media_category (category_id),
     KEY idx_media_hash (file_hash),
+    KEY idx_media_captured (captured_at),
     CONSTRAINT fk_media_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 SQL,

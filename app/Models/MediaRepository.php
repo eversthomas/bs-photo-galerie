@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BSPhotoGalerie\Models;
 
 use BSPhotoGalerie\Services\Database;
+use BSPhotoGalerie\Services\Media\ExifCaptureDate;
 use DateTimeImmutable;
 
 /**
@@ -64,7 +65,7 @@ final class MediaRepository
     public function findById(int $id): ?Media
     {
         $row = $this->database->fetchOne(
-            'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+            'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, captured_at, created_at
              FROM media WHERE id = ? LIMIT 1',
             [$id]
         );
@@ -84,16 +85,25 @@ final class MediaRepository
     }
 
     /**
-     * Medienliste für das Backend nach Upload-Zeitraum (created_at).
+     * Medienliste für das Backend nach Upload-Zeitraum (created_at); Sortierung wählbar.
      *
      * @param 'all'|'hour'|'day'|'week'|'month' $period
+     * @param 'manual'|'upload'|'captured' $listSort manual = sort_order; upload = created_at; captured = captured_at (ohne Datum am Ende)
+     * @param 'asc'|'desc' $listDir bei upload/captured
      *
      * @return list<Media>
      */
-    public function listByUploadPeriod(string $period, int $limit = 200, int $offset = 0): array
-    {
+    public function listByUploadPeriod(
+        string $period,
+        int $limit = 200,
+        int $offset = 0,
+        string $listSort = 'manual',
+        string $listDir = 'desc'
+    ): array {
         $limit = max(1, min($limit, 500));
         $offset = max(0, $offset);
+        $listSort = $listSort === 'upload' || $listSort === 'captured' ? $listSort : 'manual';
+        $listDir = $listDir === 'asc' ? 'asc' : 'desc';
 
         $where = '';
         if ($period === 'hour') {
@@ -106,8 +116,9 @@ final class MediaRepository
             $where = ' WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)';
         }
 
-        $sql = 'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
-             FROM media' . $where . ' ORDER BY sort_order DESC, id DESC LIMIT ? OFFSET ?';
+        $orderBy = self::sqlOrderAdminList($listSort, $listDir);
+        $sql = 'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, captured_at, created_at
+             FROM media' . $where . ' ORDER BY ' . $orderBy . ' LIMIT ? OFFSET ?';
         $rows = $this->database->fetchAll($sql, [$limit, $offset]);
 
         $out = [];
@@ -122,7 +133,7 @@ final class MediaRepository
      * Nur für die öffentliche Galerie: sichtbare Bilder.
      *
      * @param bool $enforceCategoryPublicity Wenn true (Gast): Medien in privaten Kategorien ausblenden bzw. nur öffentliche Kategorien.
-     * @param 'manual'|'exif_date' $sort manual = sort_order wie Backend; exif_date = Aufnahmezeit aus exif_json (MySQL JSON), ohne EXIF am Ende
+     * @param 'manual'|'exif_date'|'upload_date' $sort manual = sort_order; exif_date = Aufnahme (captured_at, Fallback JSON); upload_date = created_at absteigend
      *
      * @return list<Media>
      */
@@ -135,20 +146,24 @@ final class MediaRepository
     ): array {
         $limit = max(1, min($limit, 500));
         $offset = max(0, $offset);
-        $sort = $sort === 'exif_date' ? 'exif_date' : 'manual';
+        $sort = match ($sort) {
+            'exif_date' => 'exif_date',
+            'upload_date' => 'upload_date',
+            default => 'manual',
+        };
 
         if (! $enforceCategoryPublicity) {
             $order = self::sqlOrderPublicVisible($sort, false);
             if ($categoryId === null) {
                 $rows = $this->database->fetchAll(
-                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, captured_at, created_at
                      FROM media WHERE is_visible = 1
                      ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                     [$limit, $offset]
                 );
             } else {
                 $rows = $this->database->fetchAll(
-                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, created_at
+                    'SELECT id, category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, is_visible, captured_at, created_at
                      FROM media WHERE is_visible = 1 AND category_id = ?
                      ORDER BY ' . $order . ' LIMIT ? OFFSET ?',
                     [$categoryId, $limit, $offset]
@@ -157,7 +172,7 @@ final class MediaRepository
         } elseif ($categoryId === null) {
             $order = self::sqlOrderPublicVisible($sort, true);
             $rows = $this->database->fetchAll(
-                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
+                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.captured_at, m.created_at
                  FROM media m
                  WHERE m.is_visible = 1
                  AND (
@@ -172,7 +187,7 @@ final class MediaRepository
         } else {
             $order = self::sqlOrderPublicVisible($sort, true);
             $rows = $this->database->fetchAll(
-                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.created_at
+                'SELECT m.id, m.category_id, m.filename, m.storage_path, m.file_hash, m.mime_type, m.width, m.height, m.title, m.description, m.is_visible, m.captured_at, m.created_at
                  FROM media m
                  INNER JOIN categories c ON c.id = m.category_id AND c.is_public = 1
                  WHERE m.is_visible = 1 AND m.category_id = ?
@@ -190,10 +205,16 @@ final class MediaRepository
     }
 
     /**
-     * @param 'manual'|'exif_date' $sort
+     * @param 'manual'|'exif_date'|'upload_date' $sort
      */
     private static function sqlOrderPublicVisible(string $sort, bool $aliasM): string
     {
+        if ($sort === 'upload_date') {
+            return $aliasM
+                ? 'm.created_at DESC, m.id DESC'
+                : 'created_at DESC, id DESC';
+        }
+
         if ($sort !== 'exif_date') {
             return $aliasM
                 ? 'm.sort_order DESC, m.id DESC'
@@ -202,12 +223,29 @@ final class MediaRepository
 
         $p = $aliasM ? 'm.' : '';
         $exifTs = 'COALESCE('
+            . $p . 'captured_at, '
             . 'STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(' . $p . 'exif_json, \'$.EXIF.DateTimeOriginal\')), \'%Y:%m:%d %H:%i:%s\'), '
             . 'STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(' . $p . 'exif_json, \'$.IFD0.DateTime\')), \'%Y:%m:%d %H:%i:%s\')'
             . ')';
 
         return '((' . $exifTs . ') IS NULL) ASC, ' . $exifTs . ' DESC, '
             . ($aliasM ? 'm.sort_order DESC, m.id DESC' : 'sort_order DESC, id DESC');
+    }
+
+    /**
+     * @param 'manual'|'upload'|'captured' $sort
+     * @param 'asc'|'desc' $dir
+     */
+    private static function sqlOrderAdminList(string $sort, string $dir): string
+    {
+        $asc = $dir === 'asc';
+
+        return match ($sort) {
+            'upload' => $asc ? 'created_at ASC, id ASC' : 'created_at DESC, id DESC',
+            'captured' => '(captured_at IS NULL) ASC, captured_at ' . ($asc ? 'ASC' : 'DESC')
+                . ', id ' . ($asc ? 'ASC' : 'DESC'),
+            default => 'sort_order DESC, id DESC',
+        };
     }
 
     public function nextSortOrder(): int
@@ -218,15 +256,15 @@ final class MediaRepository
     }
 
     /**
-     * @param array{category_id:?int,filename:string,storage_path:string,file_hash:string,mime_type:string,width:?int,height:?int,title:string,description:?string,exif_json:?string,sort_order:int} $data
+     * @param array{category_id:?int,filename:string,storage_path:string,file_hash:string,mime_type:string,width:?int,height:?int,title:string,description:?string,exif_json:?string,captured_at:?string,sort_order:int} $data
      */
     public function insert(array $data): int
     {
         $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
 
         $this->database->execute(
-            'INSERT INTO media (category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, exif_json, sort_order, is_visible, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,NULL)',
+            'INSERT INTO media (category_id, filename, storage_path, file_hash, mime_type, width, height, title, description, exif_json, captured_at, sort_order, is_visible, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,NULL)',
             [
                 $data['category_id'],
                 $data['filename'],
@@ -238,6 +276,7 @@ final class MediaRepository
                 $data['title'],
                 $data['description'] ?? '',
                 $data['exif_json'],
+                $data['captured_at'] ?? null,
                 $data['sort_order'],
                 $now,
             ]
@@ -317,10 +356,12 @@ final class MediaRepository
 
     public function updateExifJson(int $id, ?string $exifJson): void
     {
+        $cap = ExifCaptureDate::fromExifJsonString($exifJson);
         $this->database->execute(
-            'UPDATE media SET exif_json = ?, updated_at = ? WHERE id = ?',
+            'UPDATE media SET exif_json = ?, captured_at = ?, updated_at = ? WHERE id = ?',
             [
                 $exifJson,
+                $cap,
                 (new DateTimeImmutable('now'))->format('Y-m-d H:i:s'),
                 $id,
             ]
@@ -385,6 +426,9 @@ final class MediaRepository
     {
         $cat = $row['category_id'] ?? null;
 
+        $cap = $row['captured_at'] ?? null;
+        $capStr = ($cap !== null && $cap !== '') ? (string) $cap : null;
+
         return new Media(
             (int) ($row['id'] ?? 0),
             $cat !== null ? (int) $cat : null,
@@ -397,6 +441,7 @@ final class MediaRepository
             (string) ($row['title'] ?? ''),
             (string) ($row['description'] ?? ''),
             ! empty($row['is_visible']),
+            $capStr,
             (string) ($row['created_at'] ?? '')
         );
     }

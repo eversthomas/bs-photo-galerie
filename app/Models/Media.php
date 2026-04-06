@@ -22,6 +22,8 @@ final class Media
         public string $title,
         public string $description,
         public bool $isVisible,
+        /** SQL DATETIME aus EXIF (DateTimeOriginal / IFD0.DateTime), sonst null */
+        public ?string $capturedAt,
         public string $createdAt
     ) {
     }

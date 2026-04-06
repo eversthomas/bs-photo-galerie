@@ -37,6 +37,39 @@ final class MediaAdminService
         return $period === 'all' ? '' : ('?period=' . rawurlencode($period));
     }
 
+    public function normalizeListSort(string $raw): string
+    {
+        return match ($raw) {
+            'upload', 'captured' => $raw,
+            default => 'manual',
+        };
+    }
+
+    public function normalizeListDir(string $raw): string
+    {
+        return strtolower($raw) === 'asc' ? 'asc' : 'desc';
+    }
+
+    /**
+     * Query-String für /admin/media inkl. Zeitraum und Listensortierung (?period=&sort=&dir=).
+     */
+    public function adminMediaIndexQuery(string $period, string $sort, string $dir): string
+    {
+        $period = $this->normalizePeriod($period);
+        $sort = $this->normalizeListSort($sort);
+        $dir = $this->normalizeListDir($dir);
+        $q = [];
+        if ($period !== 'all') {
+            $q['period'] = $period;
+        }
+        if ($sort !== 'manual') {
+            $q['sort'] = $sort;
+            $q['dir'] = $dir;
+        }
+
+        return $q === [] ? '' : ('?' . http_build_query($q));
+    }
+
     /**
      * @return list<int>
      */
@@ -81,10 +114,19 @@ final class MediaAdminService
     /**
      * @return array{ok:true, query:string}|array{ok:false, error:string, query:string}
      */
-    public function reorderFromPost(string $periodRaw, mixed $orderPost): array
-    {
+    /**
+     * @param string $listSortRaw Query/POST-Wert: manual|upload|captured
+     */
+    public function reorderFromPost(
+        string $periodRaw,
+        mixed $orderPost,
+        string $listSortRaw,
+        string $listDirRaw
+    ): array {
         $period = $this->normalizePeriod($periodRaw);
-        $q = $this->periodQuery($period);
+        $listSort = $this->normalizeListSort($listSortRaw);
+        $listDir = $this->normalizeListDir($listDirRaw);
+        $q = $this->adminMediaIndexQuery($period, $listSort, $listDir);
 
         if (! is_string($orderPost) || trim($orderPost) === '') {
             return ['ok' => false, 'error' => 'Keine Reihenfolge übermittelt.', 'query' => $q];
@@ -106,7 +148,7 @@ final class MediaAdminService
             }
         }
 
-        $items = $this->media->listByUploadPeriod('all', 200, 0);
+        $items = $this->media->listByUploadPeriod('all', 200, 0, $listSort, $listDir);
         $expected = array_map(static fn ($m) => $m->id, $items);
         $expectedSorted = $expected;
         sort($expectedSorted);
@@ -131,10 +173,20 @@ final class MediaAdminService
      *
      * @return array{ok:true, updated:int, categoryId:?int}|array{ok:false, error:string, query:string}
      */
-    public function bulkAssignCategoryFromPost(array $ids, mixed $categoryRaw, string $periodRaw): array
-    {
+    /**
+     * @param string $listSortRaw manual|upload|captured
+     */
+    public function bulkAssignCategoryFromPost(
+        array $ids,
+        mixed $categoryRaw,
+        string $periodRaw,
+        string $listSortRaw,
+        string $listDirRaw
+    ): array {
         $period = $this->normalizePeriod($periodRaw);
-        $q = $this->periodQuery($period);
+        $listSort = $this->normalizeListSort($listSortRaw);
+        $listDir = $this->normalizeListDir($listDirRaw);
+        $q = $this->adminMediaIndexQuery($period, $listSort, $listDir);
 
         if ($ids === []) {
             return ['ok' => false, 'error' => 'Bitte mindestens ein Bild auswählen.', 'query' => $q];

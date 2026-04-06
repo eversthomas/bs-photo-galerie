@@ -35,8 +35,24 @@ final class MediaController extends BaseController
     public function index(): void
     {
         $period = $this->mediaAdmin->normalizePeriod((string) ($this->http->request()->query('period', 'all') ?? 'all'));
-        $items = $this->mediaRepository->listByUploadPeriod($period, 200, 0);
+        $listSort = $this->mediaAdmin->normalizeListSort((string) $this->http->request()->query('sort', ''));
+        $listDir = $this->mediaAdmin->normalizeListDir((string) $this->http->request()->query('dir', 'desc'));
+        $items = $this->mediaRepository->listByUploadPeriod($period, 200, 0, $listSort, $listDir);
         $categories = $this->categoryRepository->listAllOrdered();
+
+        $periodQueries = [];
+        foreach (array_keys(MediaAdminService::PERIOD_LABELS) as $pkey) {
+            $periodQueries[$pkey] = $this->mediaAdmin->adminMediaIndexQuery($pkey, $listSort, $listDir);
+        }
+
+        $sortQueries = [
+            'manual' => $this->mediaAdmin->adminMediaIndexQuery($period, 'manual', 'desc'),
+            'upload_desc' => $this->mediaAdmin->adminMediaIndexQuery($period, 'upload', 'desc'),
+            'upload_asc' => $this->mediaAdmin->adminMediaIndexQuery($period, 'upload', 'asc'),
+            'captured_desc' => $this->mediaAdmin->adminMediaIndexQuery($period, 'captured', 'desc'),
+            'captured_asc' => $this->mediaAdmin->adminMediaIndexQuery($period, 'captured', 'asc'),
+        ];
+
         $this->render(
             'admin/media/index',
             [
@@ -46,6 +62,10 @@ final class MediaController extends BaseController
                 'mediaPeriod' => $period,
                 'mediaPeriodLabel' => MediaAdminService::PERIOD_LABELS[$period] ?? 'Alle',
                 'mediaPeriodLabels' => MediaAdminService::PERIOD_LABELS,
+                'mediaPeriodQueries' => $periodQueries,
+                'mediaListSort' => $listSort,
+                'mediaListDir' => $listDir,
+                'mediaSortQueries' => $sortQueries,
                 'user' => $this->auth->user(),
                 'flash' => Flash::pull(),
             ],
@@ -167,7 +187,12 @@ final class MediaController extends BaseController
     public function reorder(): void
     {
         $period = $this->mediaAdmin->normalizePeriod((string) $this->http->request()->post('period', 'all'));
-        $result = $this->mediaAdmin->reorderFromPost($period, $this->http->request()->post('order'));
+        $result = $this->mediaAdmin->reorderFromPost(
+            $period,
+            $this->http->request()->post('order'),
+            (string) $this->http->request()->post('list_sort', ''),
+            (string) $this->http->request()->post('list_dir', 'desc')
+        );
 
         if (! $result['ok']) {
             Flash::set('error', $result['error']);
@@ -188,7 +213,9 @@ final class MediaController extends BaseController
         $result = $this->mediaAdmin->bulkAssignCategoryFromPost(
             $ids,
             $this->http->request()->post('bulk_category_id'),
-            $periodRaw
+            $periodRaw,
+            (string) $this->http->request()->post('list_sort', ''),
+            (string) $this->http->request()->post('list_dir', 'desc')
         );
 
         if (! $result['ok']) {
@@ -226,7 +253,11 @@ final class MediaController extends BaseController
     {
         $periodRaw = (string) $this->http->request()->post('period', 'all');
         $period = $this->mediaAdmin->normalizePeriod($periodRaw);
-        $q = $this->mediaAdmin->periodQuery($period);
+        $q = $this->mediaAdmin->adminMediaIndexQuery(
+            $period,
+            $this->mediaAdmin->normalizeListSort((string) $this->http->request()->post('list_sort', '')),
+            $this->mediaAdmin->normalizeListDir((string) $this->http->request()->post('list_dir', 'desc'))
+        );
         $ids = $this->mediaAdmin->parseBulkIdsFromPost($this->http->request()->post('ids'));
 
         if ($ids === []) {

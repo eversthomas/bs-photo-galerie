@@ -9,10 +9,14 @@ declare(strict_types=1);
 /** @var string $mediaPeriod */
 /** @var string $mediaPeriodLabel */
 /** @var array<string, string> $mediaPeriodLabels */
+/** @var array<string, string> $mediaPeriodQueries */
+/** @var string $mediaListSort manual|upload|captured */
+/** @var string $mediaListDir asc|desc */
+/** @var array<string, string> $mediaSortQueries keys: manual, upload_desc, upload_asc, captured_desc, captured_asc */
 
 $orderIds = array_map(static fn ($m) => (string) $m->id, $items);
 $orderCsv = implode(',', $orderIds);
-$sortable = $mediaPeriod === 'all';
+$sortable = $mediaPeriod === 'all' && $mediaListSort === 'manual';
 $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-static');
 ?>
 <section class="admin-panel">
@@ -28,18 +32,36 @@ $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-s
         <?php foreach ($mediaPeriodLabels as $key => $label) : ?>
             <?php
             $active = $mediaPeriod === $key;
-            $href = $key === 'all'
-                ? $app->url('/admin/media')
-                : $app->url('/admin/media?period=' . rawurlencode($key));
+            $href = $app->url('/admin/media' . ($mediaPeriodQueries[$key] ?? ''));
             ?>
             <a class="media-period-tab<?= $active ? ' is-active' : '' ?>"
                href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a>
         <?php endforeach; ?>
     </nav>
+    <nav class="media-list-sort-nav" aria-label="Sortierung der Liste">
+        <span class="media-list-sort-label muted">Liste sortieren:</span>
+        <?php
+        $sortActive = static function (string $s, string $d) use ($mediaListSort, $mediaListDir): bool {
+            return $mediaListSort === $s && $mediaListDir === $d;
+        };
+        ?>
+        <a class="media-sort-tab<?= $mediaListSort === 'manual' ? ' is-active' : '' ?>"
+           href="<?= htmlspecialchars($app->url('/admin/media' . $mediaSortQueries['manual']), ENT_QUOTES, 'UTF-8') ?>">Manuelle Reihenfolge</a>
+        <a class="media-sort-tab<?= $sortActive('upload', 'desc') ? ' is-active' : '' ?>"
+           href="<?= htmlspecialchars($app->url('/admin/media' . $mediaSortQueries['upload_desc']), ENT_QUOTES, 'UTF-8') ?>">Upload ↓</a>
+        <a class="media-sort-tab<?= $sortActive('upload', 'asc') ? ' is-active' : '' ?>"
+           href="<?= htmlspecialchars($app->url('/admin/media' . $mediaSortQueries['upload_asc']), ENT_QUOTES, 'UTF-8') ?>">Upload ↑</a>
+        <a class="media-sort-tab<?= $sortActive('captured', 'desc') ? ' is-active' : '' ?>"
+           href="<?= htmlspecialchars($app->url('/admin/media' . $mediaSortQueries['captured_desc']), ENT_QUOTES, 'UTF-8') ?>">Aufnahme ↓</a>
+        <a class="media-sort-tab<?= $sortActive('captured', 'asc') ? ' is-active' : '' ?>"
+           href="<?= htmlspecialchars($app->url('/admin/media' . $mediaSortQueries['captured_asc']), ENT_QUOTES, 'UTF-8') ?>">Aufnahme ↑</a>
+    </nav>
     <p class="muted small media-period-hint">
         Ansicht: <strong><?= htmlspecialchars($mediaPeriodLabel, ENT_QUOTES, 'UTF-8') ?></strong>
-        <?php if (! $sortable) : ?>
-            — Reihenfolge speichern nur unter „Alle“.
+        <?php if ($mediaPeriod !== 'all') : ?>
+            — Reihenfolge speichern nur unter „Alle“ und Sortierung „Manuelle Reihenfolge“.
+        <?php elseif (! $sortable) : ?>
+            — Zum Sortieren per Ziehen: „Alle“ wählen und oben „Manuelle Reihenfolge“.
         <?php else : ?>
             — Karten am ⠿-Griff ziehen, dann „Reihenfolge speichern“. Checkboxen für Kategorie-Zuweisung; „Alle auswählen“ betrifft die sichtbaren Bilder.
         <?php endif; ?>
@@ -52,6 +74,8 @@ $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-s
             <form method="post" action="<?= htmlspecialchars($app->url('/admin/media/reorder'), ENT_QUOTES, 'UTF-8') ?>" class="reorder-bar" id="reorder-form">
                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="period" value="<?= htmlspecialchars($mediaPeriod, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="list_sort" value="<?= htmlspecialchars($mediaListSort, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="list_dir" value="<?= htmlspecialchars($mediaListDir, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="order" id="reorder-input" value="<?= htmlspecialchars($orderCsv, ENT_QUOTES, 'UTF-8') ?>">
                 <button type="submit" class="button-secondary" id="reorder-save">Reihenfolge speichern</button>
                 <span class="muted small reorder-hint" id="reorder-dirty" hidden>Geändert – bitte speichern.</span>
@@ -64,6 +88,8 @@ $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-s
               class="media-bulk-bar">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="period" value="<?= htmlspecialchars($mediaPeriod, ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="list_sort" value="<?= htmlspecialchars($mediaListSort, ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="list_dir" value="<?= htmlspecialchars($mediaListDir, ENT_QUOTES, 'UTF-8') ?>">
             <label class="field field-inline media-bulk-selectall">
                 <input type="checkbox" id="bulk-select-all" title="Alle sichtbaren Bilder markieren">
                 <span>Alle auswählen</span>
@@ -113,7 +139,11 @@ $gridClass = 'media-grid' . ($sortable ? ' media-grid-sortable' : ' media-grid-s
                             <input id="title-<?= (int) $m->id ?>" class="inline-title-input" name="title" type="text" value="<?= htmlspecialchars($m->title !== '' ? $m->title : $m->filename, ENT_QUOTES, 'UTF-8') ?>" maxlength="255">
                             <button type="submit" class="button-link button-tiny">Titel speichern</button>
                         </form>
-                        <span class="muted small"><?= (int) ($m->width ?? 0) ?>×<?= (int) ($m->height ?? 0) ?> · <?= htmlspecialchars($m->createdAt, ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="muted small media-card-dates">
+                            <?= (int) ($m->width ?? 0) ?>×<?= (int) ($m->height ?? 0) ?><br>
+                            Aufnahme: <?= $m->capturedAt !== null && $m->capturedAt !== '' ? htmlspecialchars($m->capturedAt, ENT_QUOTES, 'UTF-8') : '—' ?><br>
+                            Upload: <?= htmlspecialchars($m->createdAt, ENT_QUOTES, 'UTF-8') ?>
+                        </span>
                         <div class="media-actions">
                             <a href="<?= htmlspecialchars($app->url('/admin/media/' . $m->id . '/edit'), ENT_QUOTES, 'UTF-8') ?>">Bearbeiten</a>
                             <form method="post" action="<?= htmlspecialchars($app->url('/admin/media/' . $m->id . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline-delete-form" onsubmit="return confirm('Dieses Medium endgültig löschen?');">

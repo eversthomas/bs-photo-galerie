@@ -475,6 +475,47 @@ a:hover {
     margin: 0.35rem 0 1rem;
 }
 
+.media-list-sort-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
+    margin: 0.5rem 0 0.75rem;
+}
+
+.media-list-sort-label {
+    font-size: 0.86rem;
+    margin-right: 0.15rem;
+}
+
+.media-sort-tab {
+    display: inline-block;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--admin-border);
+    color: var(--admin-muted);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.media-sort-tab:hover {
+    color: var(--admin-accent);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.media-sort-tab.is-active {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: var(--admin-text);
+}
+
+.media-card-dates {
+    display: block;
+    line-height: 1.45;
+    font-size: 0.8rem;
+}
+
 .media-bulk-selectall {
     flex-direction: row;
     align-items: center;

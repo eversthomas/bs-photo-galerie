@@ -47,6 +47,10 @@ declare(strict_types=1);
         </form>
     </fieldset>
     <p class="small muted">
+        Aufnahme (EXIF): <strong><?= $media->capturedAt !== null && $media->capturedAt !== '' ? htmlspecialchars($media->capturedAt, ENT_QUOTES, 'UTF-8') : '— (kein EXIF / „EXIF neu einlesen“)' ?></strong>
+        · Hochgeladen: <strong><?= htmlspecialchars($media->createdAt, ENT_QUOTES, 'UTF-8') ?></strong>
+    </p>
+    <p class="small muted">
         <a href="<?= htmlspecialchars($app->url('/admin/media'), ENT_QUOTES, 'UTF-8') ?>">Zurück zur Medienliste</a>
         · Datei: <span class="mono"><?= htmlspecialchars($media->storagePath, ENT_QUOTES, 'UTF-8') ?></span>
     </p>

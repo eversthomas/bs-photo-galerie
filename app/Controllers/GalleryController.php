@@ -74,14 +74,17 @@ final class GalleryController extends BaseController
     }
 
     /**
-     * @return 'manual'|'exif_date'
+     * @return 'manual'|'exif_date'|'upload_date'
      */
     private function publicGallerySort(): string
     {
-        $raw = (string) ($this->http->request()->query('sort', '') ?? '');
-        $raw = strtolower(trim($raw));
+        $raw = strtolower(trim((string) ($this->http->request()->query('sort', '') ?? '')));
 
-        return ($raw === 'exif' || $raw === 'exif_date') ? 'exif_date' : 'manual';
+        return match ($raw) {
+            'exif', 'exif_date' => 'exif_date',
+            'upload', 'uploaded', 'created' => 'upload_date',
+            default => 'manual',
+        };
     }
 
     public function index(): void
@@ -104,7 +107,11 @@ final class GalleryController extends BaseController
                 'items' => $items,
                 'categories' => $cats,
                 'currentCategory' => null,
-                'gallerySort' => $sort === 'exif_date' ? 'exif' : 'manual',
+                'gallerySort' => match ($sort) {
+                    'exif_date' => 'exif',
+                    'upload_date' => 'uploaded',
+                    default => 'manual',
+                },
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),
             ],
@@ -145,7 +152,11 @@ final class GalleryController extends BaseController
                 'items' => $items,
                 'categories' => $cats,
                 'currentCategory' => $cat,
-                'gallerySort' => $sort === 'exif_date' ? 'exif' : 'manual',
+                'gallerySort' => match ($sort) {
+                    'exif_date' => 'exif',
+                    'upload_date' => 'uploaded',
+                    default => 'manual',
+                },
                 'includeGalleryAssets' => true,
                 'galleryRuntimeConfig' => $this->galleryRuntimeConfig(),
             ],

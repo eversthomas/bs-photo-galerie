@@ -7,6 +7,7 @@ namespace BSPhotoGalerie\Services\Media;
 use BSPhotoGalerie\Events\EventDispatcher;
 use BSPhotoGalerie\Events\MediaUploadedEvent;
 use BSPhotoGalerie\Models\MediaRepository;
+use BSPhotoGalerie\Services\Media\ExifCaptureDate;
 use Intervention\Image\ImageManager;
 use RuntimeException;
 
@@ -242,6 +243,7 @@ final class MediaUploadService
         }
 
         $exif = (new ExifExtractor())->extractAsJson($absolutePath, $mime);
+        $capturedAt = ExifCaptureDate::fromExifJsonString($exif);
 
         $title = $this->deriveTitle($originalNameForTitle, $titleBase);
 
@@ -260,6 +262,7 @@ final class MediaUploadService
                 'title' => $title,
                 'description' => '',
                 'exif_json' => $exif,
+                'captured_at' => $capturedAt,
                 'sort_order' => $sortOrder,
             ]);
         } catch (\Throwable $e) {

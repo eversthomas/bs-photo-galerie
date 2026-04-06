@@ -9,11 +9,15 @@ declare(strict_types=1);
 /** @var list<array{id:int,name:string,slug:string,sort_order:int,is_public:bool}> $categories */
 /** @var array{id:int,name:string,slug:string,sort_order:int,is_public:bool}|null $currentCategory */
 /** @var array{slideshowEnabled: bool, slideshowInterval: int, musicEnabled: bool, musicUrls: list<string>} $galleryRuntimeConfig */
-/** @var string $gallerySort manual|exif */
+/** @var string $gallerySort manual|exif|uploaded */
 
 $isFiltered = $currentCategory !== null;
 $gallerySort = $gallerySort ?? 'manual';
-$sortQs = $gallerySort === 'exif' ? 'sort=exif' : '';
+$sortQs = match ($gallerySort) {
+    'exif' => 'sort=exif',
+    'uploaded' => 'sort=uploaded',
+    default => '',
+};
 $withSort = static function (string $path) use ($app, $sortQs): string {
     $base = $app->publicUrl($path);
 
@@ -62,6 +66,14 @@ $galleryRuntimeJson = json_encode(
                    ENT_QUOTES,
                    'UTF-8'
                ) ?>">Aufnahmedatum</a>
+            <a class="gallery-sort-opt<?= $gallerySort === 'uploaded' ? ' is-active' : '' ?>"
+               href="<?= htmlspecialchars(
+                   $isFiltered
+                       ? $app->publicUrl('/galerie/kategorie/' . rawurlencode($currentCategory['slug']) . '?sort=uploaded')
+                       : $app->publicUrl('/galerie?sort=uploaded'),
+                   ENT_QUOTES,
+                   'UTF-8'
+               ) ?>">Hochgeladen</a>
         </nav>
 
     <?php if ($items === []) : ?>
